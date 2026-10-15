@@ -11,6 +11,11 @@ Internal Chrome extension to automate patient waiting list management and mainta
 * **Audio Alert:** Plays a "Ding" sound when a queue is cleared.
 
 ## 🛠 Installation
+
+Download the [hospital extension v1.0 ZIP](downloads/queuebee-extension-v1.0.zip),
+extract it, and load its `queuebee-extension-v1.0` folder using the steps below.
+This package runs on the hospital IP and contains no demo dashboard.
+
 1.  Open **Google Chrome** and go to `chrome://extensions/`.
 2.  Turn on **Developer mode** (top right).
 3.  Click **Load unpacked**.
