@@ -2,8 +2,9 @@
   "name": "queuebee-auto-clicker",
   "private": true,
   "scripts": {
-    "test": "node --test tests/*.test.cjs",
-    "build:demo": "node scripts/build-demo.cjs"
+    "test": "node --test --test-concurrency=1 tests/*.test.cjs",
+    "build:demo": "node scripts/build-demo.cjs",
+    "build:test-extension": "node scripts/build-test-extension.cjs"
   },
   "devDependencies": {"playwright-core": "1.61.1"}
 }

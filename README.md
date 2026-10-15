@@ -37,7 +37,33 @@ waiting list. Background tab throttling can delay work; a step delayed beyond
 message and the current patient before restarting. STOP prevents further actions;
 it cannot undo a Silent Call already sent to the server.
 
-### Try the local demo
+### Test the installed extension offline
+
+Download [the installable OFFLINE TEST extension](demo/queuebee-extension-test-v1.0.zip).
+Extract it, then use Chrome's `chrome://extensions/` → **Developer mode** →
+**Load unpacked** to select the `queuebee-extension-test` folder containing
+`manifest.json`. In this extension's **Details**, enable **Allow access to file
+URLs**. Open its included `queuebee-test.html` file in Chrome.
+
+The page should show **Extension connected**. Pin **QueueBee v1.0 — OFFLINE
+TEST**, open its popup, select **15 minutes**, and press **START**. Expect queues
+3001 and 3002 to clear, 3003 and 3004 to remain, an extension counter of 2, and
+Normal calls of 0. Threshold and START/STOP controls are in the real extension
+popup. Reset demo stops automation and clears test extension storage. Use one
+test dashboard tab at a time.
+
+This build uses native content-script injection and Chrome extension storage.
+Its `content.js` and `popup.js` are identical to the hospital build. Only the
+patients and server responses are simulated. Its manifest matches the local
+`queuebee-test.html` file and grants no hospital-site access. The production
+manifest remains restricted to `10.138.119.134`. Build it again with
+`npm run build:test-extension` (output: `dist/queuebee-extension-test`).
+
+Managed Chrome must permit unpacked extensions and file URL access. Native
+extension loading in this cloud browser is disabled by administrator policy;
+the build and isolated content-script behavior were checked separately.
+
+### Try the standalone HTML simulation
 
 Download [the demo ZIP](demo/queuebee-demo.zip) using GitHub's **Download raw
 file** button, extract it, and open `queuebee-demo.html` in Chrome. A prebuilt

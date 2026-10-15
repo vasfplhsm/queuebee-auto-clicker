@@ -65,6 +65,29 @@
     <footer>This demo runs the same v1.0 automation script with a simulated dashboard and Chrome storage. Testing here does not verify the live hospital system. Background browser throttling may delay work or trigger the timeout safeguard.</footer>
   </main>
   <script>
+// Used only by the standalone HTML simulation, never by the extension test build.
+(() => {
+    const listeners = [];
+    const state = {isRunning:false, waitLimit:'15', clearedCount:0, activityLogs:[], automationMessage:''};
+    window.chrome = {runtime:{}, storage:{
+        onChanged:{addListener(fn) {listeners.push(fn);}},
+        local:{
+            get(keys, callback) {callback(Object.fromEntries(keys.filter(key => key in state).map(key => [key, structuredClone(state[key])])));},
+            set(values, callback) {
+                const changes = {};
+                for (const [key, value] of Object.entries(values)) {
+                    if (JSON.stringify(state[key]) !== JSON.stringify(value)) changes[key] = {oldValue:state[key], newValue:value};
+                    state[key] = structuredClone(value);
+                }
+                if (Object.keys(changes).length) listeners.forEach(fn => fn(changes, 'local'));
+                callback?.();
+            }
+        }
+    }};
+})();
+
+</script>
+  <script>
 /* Simulated QueueBee UI. The automation itself is loaded from ../content.js. */
 (() => {
     const descriptions = {
@@ -75,24 +98,6 @@
         timeout: 'Done will receive no response. After 30 seconds, automation should stop with a message and a cleared count of 0.'
     };
     const mode = Object.hasOwn(descriptions, location.hash.slice(1)) ? location.hash.slice(1) : 'baseline';
-    const listeners = [];
-    const state = {isRunning: false, waitLimit: '15', clearedCount: 0, activityLogs: [], automationMessage: ''};
-    // Memory only, isolated to this page. No real extension storage is used.
-    window.chrome = {runtime: {}, storage: {
-        onChanged: {addListener(fn) {listeners.push(fn);}},
-        local: {
-            get(keys, callback) {callback(Object.fromEntries(keys.filter(key => key in state).map(key => [key, structuredClone(state[key])])));},
-            set(values, callback) {
-                const changes = {};
-                for (const [key, value] of Object.entries(values)) {
-                    if (JSON.stringify(state[key]) !== JSON.stringify(value)) changes[key] = {oldValue: state[key], newValue: value};
-                    state[key] = structuredClone(value);
-                }
-                if (Object.keys(changes).length) listeners.forEach(fn => fn(changes, 'local'));
-                callback?.();
-            }
-        }
-    }};
     const byId = id => document.getElementById(id);
     let active = null;
     let finishing = false;
@@ -183,12 +188,22 @@
     current('3001', false);
     byId('scenario').value = mode;
     byId('scenarioHint').textContent = descriptions[mode];
-    byId('scenario').onchange = event => {location.hash = event.target.value; location.reload();};
-    byId('reset').onclick = () => location.reload();
+    function reset(scenario) {
+        if (document.documentElement.dataset.extensionTest === 'true') {
+            window.dispatchEvent(new CustomEvent('queuebee-test-reset', {detail:scenario}));
+        } else {
+            location.hash = scenario;
+            location.reload();
+        }
+    }
+    byId('scenario').onchange = event => reset(event.target.value);
+    byId('reset').onclick = () => reset(mode);
     setInterval(() => {
         if (active) document.querySelector('span.divCall').textContent = format(Math.floor((Date.now() - startedAt) / 1000));
     }, 1000);
-    log('Demo ready. Select 15 minutes and press START.');
+    log(document.documentElement.dataset.extensionTest === 'true'
+        ? 'Test dashboard ready. Choose 15 minutes and START in the extension popup.'
+        : 'Demo ready. Select 15 minutes and press START.');
 })();
 
 </script>
