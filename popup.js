@@ -1,5 +1,5 @@
 ﻿function updateUI() {
-  chrome.storage.local.get(['waitLimit', 'isRunning', 'clearedCount', 'activityLogs'], (res) => {
+  chrome.storage.local.get(['waitLimit', 'isRunning', 'clearedCount', 'activityLogs', 'automationMessage'], (res) => {
     // FIX: Set the dropdown value to what is in storage
     if (res.waitLimit) {
         document.getElementById('timeLimit').value = res.waitLimit;
@@ -8,6 +8,7 @@
     document.getElementById('clearCount').innerText = res.clearedCount || 0;
     
     const statusDiv = document.getElementById('status');
+    document.getElementById('automationMessage').textContent = res.automationMessage || '';
     if (res.isRunning) {
         statusDiv.innerText = "SYSTEM ACTIVE";
         statusDiv.className = "status-on";
@@ -28,11 +29,11 @@
 document.getElementById('startBtn').addEventListener('click', () => {
   const limit = document.getElementById('timeLimit').value;
   // Save the limit immediately when Start is clicked
-  chrome.storage.local.set({ waitLimit: limit, isRunning: true }, updateUI);
+  chrome.storage.local.set({ waitLimit: limit, isRunning: true, automationMessage: '' }, updateUI);
 });
 
 document.getElementById('stopBtn').addEventListener('click', () => {
-  chrome.storage.local.set({ isRunning: false }, updateUI);
+  chrome.storage.local.set({ isRunning: false, automationMessage: 'Stopped by user.' }, updateUI);
 });
 
 // Update the limit even if they change the dropdown without clicking start

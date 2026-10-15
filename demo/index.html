@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>QueueBee — local demo</title>
+  <link rel="stylesheet" href="demo.css">
+</head>
+<body>
+  <header><strong>QueueBee <span>/ local demo</span></strong><span class="badge">SIMULATED DATA</span></header>
+  <main>
+    <section class="intro">
+      <p class="eyebrow">TRY THE FIX · V8.1</p>
+      <h1>Test the timing.<br>Watch the queue.</h1>
+      <p>Choose a threshold and press START. Only patients whose <strong>Wait Duration</strong> reaches that threshold should be cleared.</p>
+      <p class="offline">Runs locally with fake patients. No hospital connection or extension installation needed.</p>
+    </section>
+    <div class="toolbar">
+      <label>Test scenario <select id="scenario">
+        <option value="baseline">Mixed waits · start here</option>
+        <option value="below">All below 15 minutes</option>
+        <option value="slow">Slow response · 8 seconds per completion</option>
+        <option value="wrong">Wrong patient · must stop before Done</option>
+        <option value="timeout">No completion · must stop after 30 seconds</option>
+      </select></label>
+      <button id="reset" class="secondary">Reset demo</button>
+    </div>
+    <p id="scenarioHint" class="hint"></p>
+    <div class="layout">
+      <section class="card queue-card" aria-label="Simulated waiting list">
+        <div class="section-title"><h2>Waiting list</h2><span class="badge subtle">WAIT TIMES FIXED FOR TESTING</span></div>
+        <div class="table-scroll"><table id="tblmon1">
+          <thead><tr><th>Queue No.</th><th>Service Name</th><th>Issue Time</th><th>Wait Duration</th></tr></thead>
+          <tbody id="queueRows"></tbody>
+        </table></div>
+        <div class="queue-note">Issue Time is deliberately unrelated to the threshold. At 15 minutes, 00:14:59 must stay in the list.</div>
+        <div class="current">
+          <div><p class="eyebrow" id="patientState">NEXT</p><strong id="lblqueueno" data-status="0">—</strong></div>
+          <table class="patient-controls"><tr>
+            <td data-info="CALL"><button id="manualCall" class="secondary btnMainCall"><span class="divCall" data-info="CALL">CALL</span></button></td>
+            <td data-info="DONE"><button id="manualDone" class="secondary btnMainCall" disabled><span class="divDone" data-info="DONE">DONE</span></button></td>
+          </tr></table>
+        </div>
+      </section>
+      <aside class="card automation" aria-label="Automation controls">
+        <h2>Automation</h2>
+        <label for="timeLimit">Wait threshold</label>
+        <select id="timeLimit">
+          <option value="5">5 minutes</option><option value="10">10 minutes</option>
+          <option value="15" selected>15 minutes</option><option value="20">20 minutes</option>
+          <option value="25">25 minutes</option><option value="30">30 minutes</option>
+          <option value="35">35 minutes</option><option value="40">40 minutes</option>
+        </select>
+        <div class="button-row"><button id="startBtn">START</button><button id="stopBtn" class="stop">STOP</button></div>
+        <div id="status" class="status-off" role="status">SYSTEM IDLE</div>
+        <p id="automationMessage" role="status"></p>
+        <div class="metrics"><div><strong id="clearCount">0</strong><span>Auto-cleared</span></div><div><strong id="normalCalls">0</strong><span>Normal calls</span></div></div>
+        <p class="expectation">Normal calls should stay at <strong>0</strong> when automation runs.</p>
+        <h3>Cleared queues</h3><div id="logList"><p class="muted">Nothing cleared yet.</p></div>
+      </aside>
+    </div>
+    <section class="card activity"><div class="section-title"><h2>What happened</h2><span class="muted">Newest first</span></div><ol id="timeline" aria-live="polite"></ol></section>
+    <footer>This demo runs the same v8.1 automation script with a simulated dashboard and Chrome storage. Testing here does not verify the live hospital system. Background browser throttling may delay work or trigger the timeout safeguard.</footer>
+  </main>
+  <script src="demo.js"></script>
+  <script src="../content.js"></script>
+  <script src="../popup.js"></script>
+</body>
+</html>

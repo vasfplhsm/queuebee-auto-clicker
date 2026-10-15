@@ -1,95 +1,226 @@
-﻿const ding = new Audio("data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YV9vT18AZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAD///8BAP//AgD//wMA//8EAP//BQD//wYA//8HAP//CAD//wkA//8KAP//CwD//wwA//8NAP//DgD//w8A//8QAP//EQD//xIA//8TAP//FAD//xUA//8WAP//FwD//xgA//8ZAP//GgD//xsA//8cAP//HQD//x4A//8fAP//IAD//yEA//8iAP//IwD//yQA//8lAP//JgD//ycA//8oAP//KQD//yoA//8rAP//LAD//y0A//8uAP//LwD//zAA//8xAP//MgD//zMA//80AP//NQD//zYA//83AP//OAD//zkA//86AP//OwD//zwA//89AP//PgD//z8A");
+(() => {
+    // Reinjection must never start a second loop in this tab.
+    if (globalThis.queueBeeAutomationLoaded) return;
+    globalThis.queueBeeAutomationLoaded = true;
 
-setInterval(() => {
-    chrome.storage.local.get(['waitLimit', 'isRunning'], (result) => {
-        if (result.isRunning) processQueue(parseInt(result.waitLimit) || 25);
+    const ding = new Audio("data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YV9vT18AZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAD///8BAP//AgD//wMA//8EAP//BQD//wYA//8HAP//CAD//wkA//8KAP//CwD//wwA//8NAP//DgD//w8A//8QAP//EQD//xIA//8TAP//FAD//xUA//8WAP//FwD//xgA//8ZAP//GgD//xsA//8cAP//HQD//x4A//8fAP//IAD//yEA//8iAP//IwD//yQA//8lAP//JgD//ycA//8oAP//KQD//yoA//8rAP//LAD//y0A//8uAP//LwD//zAA//8xAP//MgD//zMA//80AP//NQD//zYA//83AP//OAD//zkA//86AP//OwD//zwA//89AP//PgD//z8A");
+    const STEP_TIMEOUT_MS = 30000;
+    let revision = 0;
+    const completed = new Set();
+    const text = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
+    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+    const get = keys => new Promise((resolve, reject) => {
+        chrome.storage.local.get(keys, value => chrome.runtime.lastError
+            ? reject(new Error(chrome.runtime.lastError.message)) : resolve(value));
     });
-}, 10000);
+    const set = values => new Promise((resolve, reject) => {
+        chrome.storage.local.set(values, () => chrome.runtime.lastError
+            ? reject(new Error(chrome.runtime.lastError.message)) : resolve());
+    });
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local' && (changes.isRunning || changes.waitLimit)) revision++;
+    });
+    class Cancelled extends Error {}
 
-function processQueue(threshold) {
-    const rows = document.querySelectorAll("tr");
+    function visible(el) {
+        return !!el?.isConnected && !el.closest('#maincmsTooltips, [hidden], [aria-hidden="true"]') &&
+            Array.from(el.getClientRects()).some(rect => rect.width > 0 && rect.height > 0) &&
+            getComputedStyle(el).visibility !== 'hidden';
+    }
+    function enabled(el) {
+        return visible(el) && !el.closest('[disabled], [aria-disabled="true"], .disabled') &&
+            getComputedStyle(el).pointerEvents !== 'none';
+    }
+    function durationSeconds(value) {
+        const match = value.trim().match(/^(?:(\d+):)?(\d{1,2}):(\d{2})$/);
+        if (!match || +match[2] > 59 || +match[3] > 59) return null;
+        return +(match[1] || 0) * 3600 + +match[2] * 60 + +match[3];
+    }
 
-    rows.forEach(row => {
-        const rowText = row.innerText || "";
-        const timeMatch = rowText.match(/(\d{1,2}):(\d{2}):(\d{2})/) || rowText.match(/(\d{1,2}):(\d{2})/);
-        
-        if (timeMatch) {
-            let mins = timeMatch.length === 4 ? (parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2])) : parseInt(timeMatch[1]);
-
-            if (mins >= threshold) {
-                // Find the Silent Call icon within this specific row
-                const silentBtn = row.querySelector('[title*="Silent" i], [aria-label*="Silent" i], .fa-volume-mute, [class*="silent" i]');
-
-                if (silentBtn) {
-                    const queueNum = row.cells[0]?.innerText.trim() || "???";
-                    console.log("Step 1: Clicking Silent Call for " + queueNum);
-                    silentBtn.click();
-                    
-                    // Use a shorter polling interval to find the button as soon as it appears
-                    let attempts = 0;
-                    const findInterval = setInterval(() => {
-                        const doneBtn = findDoneButton(row);
-                        
-                        if (doneBtn) {
-                            console.log("Step 2: Found Done button for " + queueNum);
-                            doneBtn.click();
-                            ding.play().catch(() => {});
-                            updateStorage(queueNum);
-                            clearInterval(findInterval);
-                        }
-                        
-                        attempts++;
-                        if (attempts > 10) { // Stop looking after 10 seconds (20 * 500ms)
-                            console.log("Step 2 FAILED: Timeout looking for Done button for " + queueNum);
-                            clearInterval(findInterval);
-                        }
-                    }, 5000); // Check every 5 seconds (matched to your original delay)
-                }
+    function waitHeader(table) {
+        return Array.from(table.rows).find(row => row.closest('table') === table &&
+            Array.from(row.cells).some(cell => /^wait\s+duration$/i.test(text(cell))));
+    }
+    function waitingListVisible() {
+        return Array.from(document.querySelectorAll('table')).some(table => visible(table) && waitHeader(table));
+    }
+    function waitingRows() {
+        const result = [];
+        for (const table of document.querySelectorAll('table')) {
+            const header = waitHeader(table);
+            if (!header || !visible(table)) continue;
+            let column = 0;
+            for (const cell of header.cells) {
+                if (/^wait\s+duration$/i.test(text(cell))) break;
+                column += cell.colSpan;
+            }
+            for (const row of table.rows) {
+                if (row === header || row.closest('table') !== table || !visible(row)) continue;
+                // The first outer cell contains a nested monqueueinfo table.
+                // Never scan that table, Issue Time, or the entire row for a time.
+                const seconds = durationSeconds(text(row.cells[column]));
+                const identity = row.cells[0]?.querySelector('[data-queue][data-tranid]');
+                if (seconds === null || !identity) continue;
+                const num = identity.getAttribute('data-queue');
+                const transaction = identity.getAttribute('data-tranid');
+                if (!/^[A-Za-z0-9-]+$/.test(num || '') || !transaction) continue;
+                const silent = Array.from(row.querySelectorAll('[data-info="Silent Call"][data-queue][data-tranid]'))
+                    .filter(el => el.getAttribute('data-queue') === num &&
+                        el.getAttribute('data-tranid') === transaction && enabled(el));
+                if (silent.length === 1) result.push({seconds, num, transaction, silent: silent[0], key: `${num}:${transaction}`});
             }
         }
-    });
-}
-
-function findDoneButton(row) {
-    // Strategy: Look specifically within the row first, then the whole document 
-    // but filter for visibility.
-    const selectors = [
-        "button", "a", "i", "span", "div", "[role='button']"
-    ];
-    
-    // We search the whole document because 'Done' often appears in a modal/popup 
-    // outside the <tr> structure.
-    const elements = document.querySelectorAll(selectors.join(","));
-    
-    return Array.from(elements).find(el => {
-        const txt = el.innerText.trim().toLowerCase();
-        const title = (el.title || "").toLowerCase();
-        const cls = (el.className || "").toLowerCase();
-        
-        // Ensure the element is actually visible and clickable
-        const isVisible = el.offsetWidth > 0 && el.offsetHeight > 0;
-
-        const matchesKeyword = 
-            txt === "done" || 
-            txt === "complete" || 
-            txt === "finish" ||
-            title.includes("done") ||
-            (cls.includes("btn-success") && (txt.includes("ok") || txt.includes("confirm")));
-
-        return isVisible && matchesKeyword;
-    });
-}
-function updateStorage(queueNum) {
-    chrome.storage.local.get(['clearedCount', 'activityLogs'], (data) => {
-        const newLogs = data.activityLogs || [];
-        const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        
-        if (newLogs.length === 0 || newLogs[newLogs.length-1].num !== queueNum) {
-            newLogs.push({ num: queueNum, time: now });
-            chrome.storage.local.set({ 
-                clearedCount: (data.clearedCount || 0) + 1,
-                activityLogs: newLogs.slice(-50)
-            });
+        return result;
+    }
+    function callTimer() {
+        const labels = Array.from(document.querySelectorAll('span.divCall[data-info="CALL"]')).filter(visible);
+        return labels.length === 1 ? durationSeconds(text(labels[0])) : null;
+    }
+    function selectedQueue() {
+        const label = document.querySelector('#lblqueueno');
+        return visible(label) ? text(label) : '';
+    }
+    function transactionPresent(candidate) {
+        return Array.from(document.querySelectorAll('.monqueueinfo [data-queue][data-tranid]')).some(el =>
+            el.getAttribute('data-queue') === candidate.num && el.getAttribute('data-tranid') === candidate.transaction);
+    }
+    function doneControl() {
+        const labels = Array.from(document.querySelectorAll('span.divDone[data-info="DONE"]')).filter(enabled);
+        return labels.length === 1 ? labels[0] : null;
+    }
+    function dialogs() {
+        return Array.from(document.querySelectorAll(
+            '[role="dialog"], .modal, .jconfirm-box, .swal2-popup, .sweet-alert, .OuterPopMsg'
+        )).filter(visible);
+    }
+    function silentConfirmation(num) {
+        // Custom QueueBee dialogs may lack an ARIA role. Find the exact heading,
+        // then the smallest container with YES and NO, scoped to this patient.
+        const titles = Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,div,span'))
+            .filter(el => visible(el) && el.children.length === 0 && text(el) === 'Silent Call');
+        for (const title of titles) {
+            for (let box = title.parentElement; box && box !== document.body; box = box.parentElement) {
+                const choices = Array.from(box.querySelectorAll('button,a,input,div,span,[role="button"]'))
+                    .filter(el => enabled(el) && (el.children.length === 0 || el.matches('button,a,[role="button"]')));
+                const yes = choices.filter(el => /^yes$/i.test(text(el) || el.value || ''));
+                const no = choices.filter(el => /^no$/i.test(text(el) || el.value || ''));
+                if (!yes.length || !no.length) continue;
+                const numbers = text(box).match(/\b[A-Za-z]*\d+[A-Za-z0-9-]*\b/g) || [];
+                if (yes.length === 1 && no.length === 1 && numbers.length === 1 && numbers[0] === num) {
+                    return {yes: yes[0]};
+                }
+                break;
+            }
         }
-    });
-}
+        return null;
+    }
+    function activate(el) {
+        if (!enabled(el)) throw new Error('The intended control is no longer available.');
+        // Captured row markup uses onmousedown="onMonCall(this)".
+        // Target the exact node, never coordinates or a neighbouring CALL icon.
+        const mouse = {bubbles: true, cancelable: true, view: window, button: 0};
+        if (el.hasAttribute('onmousedown')) {
+            el.dispatchEvent(new MouseEvent('mousedown', mouse));
+        } else {
+            // Main controls can use delegated mouse handlers as well as click.
+            // Send one mouse gesture to the exact label; never retry the action.
+            el.dispatchEvent(new MouseEvent('mousedown', mouse));
+            if (!enabled(el)) return;
+            el.dispatchEvent(new MouseEvent('mouseup', mouse));
+            el.click();
+        }
+    }
+    async function check(run, deadline) {
+        const config = await get(['isRunning', 'waitLimit']);
+        if (!config.isRunning || revision !== run.revision || Number(config.waitLimit ?? 25) !== run.threshold) {
+            throw new Cancelled('Settings changed.');
+        }
+        if (deadline && Date.now() >= deadline) throw new Error('Timed out waiting for QueueBee.');
+    }
+    async function waitFor(run, predicate) {
+        const deadline = Date.now() + STEP_TIMEOUT_MS;
+        while (true) {
+            await check(run, deadline);
+            const value = predicate();
+            if (value) return value;
+            await sleep(250);
+        }
+    }
+    async function record(candidate) {
+        const data = await get(['clearedCount', 'activityLogs']);
+        const logs = Array.isArray(data.activityLogs) ? data.activityLogs : [];
+        const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+        await set({clearedCount: (Number(data.clearedCount) || 0) + 1,
+            activityLogs: [...logs, {num: candidate.num, time}].slice(-50)});
+    }
+    async function processOne(run, threshold) {
+        // A timer identifies an active call, including a manually started call.
+        if (callTimer() !== null || dialogs().length) return;
+        const candidate = waitingRows().find(item => item.seconds >= threshold * 60 && !completed.has(item.key));
+        if (!candidate) return;
+        let started = false;
+        try {
+            await check(run);
+            await set({automationMessage: `Silent Call: ${candidate.num}`});
+            await check(run);
+            // AJAX may have replaced/reordered rows while storage was read.
+            const fresh = waitingRows().find(item => item.key === candidate.key && item.seconds >= threshold * 60);
+            if (!fresh || callTimer() !== null || dialogs().length) return;
+            activate(fresh.silent);
+            started = true;
+            // Support both immediate silent calls and YES/NO confirmations.
+            await waitFor(run, () => callTimer() !== null || silentConfirmation(candidate.num));
+            const confirmation = silentConfirmation(candidate.num);
+            if (confirmation) {
+                await check(run);
+                if (silentConfirmation(candidate.num)?.yes !== confirmation.yes) throw new Error('Confirmation changed.');
+                activate(confirmation.yes);
+            }
+            await waitFor(run, () => {
+                if (callTimer() === null) return false;
+                if (selectedQueue() !== candidate.num) throw new Error('Patient number changed.');
+                return !dialogs().length && doneControl();
+            });
+            await check(run);
+            if (selectedQueue() !== candidate.num || callTimer() === null || dialogs().length) {
+                throw new Error('Patient state changed before Done.');
+            }
+            const done = doneControl();
+            if (!done) throw new Error('The exact DONE control is unavailable.');
+            activate(done);
+            // A click alone is not completion: require both the timer to end and
+            // this transaction to leave the waiting list before counting it.
+            await waitFor(run, () => callTimer() === null && waitingListVisible() &&
+                !transactionPresent(candidate) && !dialogs().length);
+            completed.add(candidate.key);
+            await record(candidate);
+            ding.play().catch(() => {});
+            await set({automationMessage: `Completed: ${candidate.num}`});
+        } catch (error) {
+            if (started) await set({isRunning: false,
+                automationMessage: `Stopped: ${error.message} Check queue ${candidate.num} before START.`});
+            throw error;
+        }
+    }
+    async function scan() {
+        try {
+            const config = await get(['isRunning', 'waitLimit']);
+            if (config.isRunning) {
+                const threshold = Number(config.waitLimit ?? 25);
+                if (![5,10,15,20,25,30,35,40].includes(threshold)) throw new Error('Choose a valid wait threshold (5–40 minutes).');
+                await processOne({revision, threshold}, threshold);
+            }
+        } catch (error) {
+            if (!(error instanceof Cancelled)) {
+                console.warn('QueueBee stopped:', error.message);
+                const config = await get(['isRunning']);
+                if (config.isRunning) await set({isRunning: false, automationMessage: `Stopped: ${error.message}`});
+            }
+        } finally {
+            // Schedule AFTER completion. Background throttling may delay a step,
+            // but cannot start another sequence while this one is pending.
+            setTimeout(scan, 2000);
+        }
+    }
+    scan();
+})();

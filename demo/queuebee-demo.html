@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>QueueBee — local demo</title>
+  <style>:root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#173436;background:#f2f5f1;font-synthesis:none}*{box-sizing:border-box}body{margin:0}header{height:76px;padding:0 5vw;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #d6dfd7;background:#fafcf8}header strong{font-size:21px;letter-spacing:-.6px}header strong span{font-weight:400;color:#678079}main{max-width:1260px;margin:auto;padding:44px 30px}.intro{max-width:710px;margin-bottom:28px}.eyebrow{font-size:11px;font-weight:750;letter-spacing:1.8px;color:#527167;margin:0 0 12px}h1{font-size:clamp(36px,5vw,58px);line-height:1.05;letter-spacing:-2.5px;margin:0 0 20px}p{line-height:1.6}.intro>p:not(.eyebrow){font-size:16px;color:#4b645e}.intro .offline{font-size:13px!important}.badge{font-size:10px;font-weight:750;letter-spacing:1px;border:1px solid #c0d4c3;border-radius:30px;padding:7px 11px;background:#e9f3e6;color:#3d684b}.subtle{background:transparent;font-size:9px}.toolbar{display:flex;align-items:end;justify-content:space-between;gap:16px}.toolbar label{display:flex;flex-direction:column;gap:7px;max-width:470px;width:100%}label{font-size:12px;font-weight:650}select{background:#fff;color:#173436;border:1px solid #c7d3ca;border-radius:8px;font:inherit;font-size:14px;padding:12px;width:100%}button{border:1px solid transparent;border-radius:8px;padding:12px 18px;background:#176052;color:white;font:inherit;font-size:13px;font-weight:650;cursor:pointer}button:hover{filter:brightness(.94)}button:disabled{opacity:.45;cursor:default}button:focus-visible,select:focus-visible{outline:3px solid #e4a941;outline-offset:3px}.secondary{background:#edf2ed;color:#315950;border-color:#cbd8ce}.stop{background:#f6e9e5;color:#974737}.hint{font-size:13px;color:#536c63;margin:14px 0 24px;min-height:21px}.layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:22px;align-items:start}.card{background:#fff;border:1px solid #d9e2d9;border-radius:15px;overflow:hidden}.section-title{padding:23px;display:flex;align-items:center;justify-content:space-between;gap:12px}h2{font-size:17px;letter-spacing:-.3px;margin:0}h3{font-size:12px;margin:23px 0 10px;color:#58736a}.table-scroll{overflow-x:auto}#tblmon1{width:100%;border-collapse:collapse;font-size:13px}#tblmon1 th{text-align:left;background:#eaf1e9;padding:15px 14px;color:#48655b;font-size:11px;white-space:nowrap}#tblmon1>tbody>tr>td{padding:18px 14px;border-bottom:1px solid #edf1eb}#tblmon1 td:last-child{font-variant-numeric:tabular-nums}.monqueueinfo{border-collapse:collapse}.monqueueinfo td{padding:0}.monqueueinfo td:first-child{font-weight:750;padding-right:12px}.monqueueinfo td:last-child{display:flex;gap:5px}.row-action{font-size:10px;padding:7px 9px;white-space:nowrap;background:#eff5f0;color:#285b49;border-color:#cddfce}.row-action.normal{color:#8f6543;background:#faf5ee;border-color:#eadfcf}.wait-cell{font-weight:700;color:#a46c22;white-space:nowrap}.queue-note{font-size:11px;color:#78877d;padding:18px 22px;background:#fbfcfa;line-height:1.7}.current{padding:22px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid #e2e9df;gap:20px}#lblqueueno{font-size:32px;letter-spacing:-1px}.current .eyebrow{margin-bottom:7px}.patient-controls td{padding:3px}.patient-controls button{min-width:90px;font-variant-numeric:tabular-nums}.automation{padding:24px}.automation h2{margin-bottom:22px}.automation>label{display:block;margin-bottom:8px}.button-row{display:flex;gap:9px;margin:12px 0 17px}.button-row button{flex:1}#status{padding:9px;text-align:center;font-size:10px;font-weight:750;letter-spacing:1px;border-radius:5px}.status-off{background:#f0f2ed;color:#728072}.status-on{background:#e2f3e7;color:#277847}#automationMessage{font-size:12px;color:#5d7168;min-height:20px;overflow-wrap:anywhere}.metrics{display:grid;grid-template-columns:1fr 1fr;gap:15px;border-top:1px solid #e4ebe2;padding-top:19px}.metrics div{display:flex;flex-direction:column;gap:6px}.metrics strong{font-size:32px;font-weight:650;letter-spacing:-1px}.metrics span{font-size:11px;color:#7a8980}.expectation{font-size:11px;color:#75867b;margin-top:17px}#logList{max-height:150px;overflow:auto}.log-entry{display:flex;justify-content:space-between;font-size:12px;border-top:1px solid #eff2ed;padding:8px 0}.log-time,.muted{color:#849086;font-size:11px}.activity{margin-top:22px}#timeline{list-style:none;margin:0;padding:0 24px 24px;max-height:260px;overflow:auto}#timeline li{padding:10px 0;border-top:1px solid #edf1eb;font-size:12px;display:flex;gap:20px}#timeline time{font-size:11px;color:#8b978d;min-width:65px;font-variant-numeric:tabular-nums}footer{font-size:11px;color:#7c8c80;line-height:1.8;margin-top:25px;max-width:890px}.OuterPopMsg{position:fixed;inset:0;display:grid;place-items:center;background:#17343655;z-index:10}.dialog-box{background:white;border-radius:15px;box-shadow:0 15px 70px #17343630;width:min(430px,90vw);padding:30px}.dialog-box h2{font-size:25px}.dialog-box p{font-size:14px;margin:25px 0}.dialog-box .button-row{margin-bottom:0}@media(max-width:950px){.layout{grid-template-columns:1fr}.automation{max-width:none}.intro{max-width:600px}.metrics{max-width:300px}}@media(max-width:560px){main{padding:30px 16px}.toolbar{align-items:stretch}.toolbar button{white-space:nowrap;padding:10px}.section-title{flex-wrap:wrap}header{padding:0 20px}.current{gap:10px}.patient-controls button{min-width:65px;padding:10px}.subtle{font-size:8px}}
+</style>
+</head>
+<body>
+  <header><strong>QueueBee <span>/ local demo</span></strong><span class="badge">SIMULATED DATA</span></header>
+  <main>
+    <section class="intro">
+      <p class="eyebrow">TRY THE FIX · V8.1</p>
+      <h1>Test the timing.<br>Watch the queue.</h1>
+      <p>Choose a threshold and press START. Only patients whose <strong>Wait Duration</strong> reaches that threshold should be cleared.</p>
+      <p class="offline">Runs locally with fake patients. No hospital connection or extension installation needed.</p>
+    </section>
+    <div class="toolbar">
+      <label>Test scenario <select id="scenario">
+        <option value="baseline">Mixed waits · start here</option>
+        <option value="below">All below 15 minutes</option>
+        <option value="slow">Slow response · 8 seconds per completion</option>
+        <option value="wrong">Wrong patient · must stop before Done</option>
+        <option value="timeout">No completion · must stop after 30 seconds</option>
+      </select></label>
+      <button id="reset" class="secondary">Reset demo</button>
+    </div>
+    <p id="scenarioHint" class="hint"></p>
+    <div class="layout">
+      <section class="card queue-card" aria-label="Simulated waiting list">
+        <div class="section-title"><h2>Waiting list</h2><span class="badge subtle">WAIT TIMES FIXED FOR TESTING</span></div>
+        <div class="table-scroll"><table id="tblmon1">
+          <thead><tr><th>Queue No.</th><th>Service Name</th><th>Issue Time</th><th>Wait Duration</th></tr></thead>
+          <tbody id="queueRows"></tbody>
+        </table></div>
+        <div class="queue-note">Issue Time is deliberately unrelated to the threshold. At 15 minutes, 00:14:59 must stay in the list.</div>
+        <div class="current">
+          <div><p class="eyebrow" id="patientState">NEXT</p><strong id="lblqueueno" data-status="0">—</strong></div>
+          <table class="patient-controls"><tr>
+            <td data-info="CALL"><button id="manualCall" class="secondary btnMainCall"><span class="divCall" data-info="CALL">CALL</span></button></td>
+            <td data-info="DONE"><button id="manualDone" class="secondary btnMainCall" disabled><span class="divDone" data-info="DONE">DONE</span></button></td>
+          </tr></table>
+        </div>
+      </section>
+      <aside class="card automation" aria-label="Automation controls">
+        <h2>Automation</h2>
+        <label for="timeLimit">Wait threshold</label>
+        <select id="timeLimit">
+          <option value="5">5 minutes</option><option value="10">10 minutes</option>
+          <option value="15" selected>15 minutes</option><option value="20">20 minutes</option>
+          <option value="25">25 minutes</option><option value="30">30 minutes</option>
+          <option value="35">35 minutes</option><option value="40">40 minutes</option>
+        </select>
+        <div class="button-row"><button id="startBtn">START</button><button id="stopBtn" class="stop">STOP</button></div>
+        <div id="status" class="status-off" role="status">SYSTEM IDLE</div>
+        <p id="automationMessage" role="status"></p>
+        <div class="metrics"><div><strong id="clearCount">0</strong><span>Auto-cleared</span></div><div><strong id="normalCalls">0</strong><span>Normal calls</span></div></div>
+        <p class="expectation">Normal calls should stay at <strong>0</strong> when automation runs.</p>
+        <h3>Cleared queues</h3><div id="logList"><p class="muted">Nothing cleared yet.</p></div>
+      </aside>
+    </div>
+    <section class="card activity"><div class="section-title"><h2>What happened</h2><span class="muted">Newest first</span></div><ol id="timeline" aria-live="polite"></ol></section>
+    <footer>This demo runs the same v8.1 automation script with a simulated dashboard and Chrome storage. Testing here does not verify the live hospital system. Background browser throttling may delay work or trigger the timeout safeguard.</footer>
+  </main>
+  <script>
+/* Simulated QueueBee UI. The automation itself is loaded from ../content.js. */
+(() => {
+    const descriptions = {
+        baseline: 'At 15 minutes: 3001 and 3002 should clear; 3003 (14:59) and 3004 (04:40) should remain. Normal calls should stay at 0.',
+        below: 'With the threshold at 15 minutes, START should leave every queue untouched.',
+        slow: 'Completion takes 8 seconds. Watch that the next queue starts only after the current queue finishes. You can also switch tabs and return.',
+        wrong: 'The simulator will return patient 9999 after Silent Call. Automation should stop without clicking Done or increasing the counter.',
+        timeout: 'Done will receive no response. After 30 seconds, automation should stop with a message and a cleared count of 0.'
+    };
+    const mode = Object.hasOwn(descriptions, location.hash.slice(1)) ? location.hash.slice(1) : 'baseline';
+    const listeners = [];
+    const state = {isRunning: false, waitLimit: '15', clearedCount: 0, activityLogs: [], automationMessage: ''};
+    // Memory only, isolated to this page. No real extension storage is used.
+    window.chrome = {runtime: {}, storage: {
+        onChanged: {addListener(fn) {listeners.push(fn);}},
+        local: {
+            get(keys, callback) {callback(Object.fromEntries(keys.filter(key => key in state).map(key => [key, structuredClone(state[key])])));},
+            set(values, callback) {
+                const changes = {};
+                for (const [key, value] of Object.entries(values)) {
+                    if (JSON.stringify(state[key]) !== JSON.stringify(value)) changes[key] = {oldValue: state[key], newValue: value};
+                    state[key] = structuredClone(value);
+                }
+                if (Object.keys(changes).length) listeners.forEach(fn => fn(changes, 'local'));
+                callback?.();
+            }
+        }
+    }};
+    const byId = id => document.getElementById(id);
+    let active = null;
+    let finishing = false;
+    let normalCalls = 0;
+    let startedAt = 0;
+    const format = seconds => [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60].map(n => String(n).padStart(2, '0')).join(':');
+
+    function log(message) {
+        const item = document.createElement('li');
+        const time = document.createElement('time');
+        time.textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+        const detail = document.createElement('span');
+        detail.textContent = message;
+        item.append(time, detail);
+        byId('timeline').prepend(item);
+    }
+
+    function current(num, attending) {
+        byId('lblqueueno').textContent = num;
+        byId('patientState').textContent = attending ? 'ATTENDING' : 'NEXT';
+        byId('manualCall').disabled = attending;
+        byId('manualDone').disabled = !attending;
+        document.querySelectorAll('.row-action').forEach(button => {button.disabled = attending;});
+    }
+    function begin(num, type) {
+        active = num;
+        startedAt = Date.now();
+        current(mode === 'wrong' && type === 'Silent Call' ? '9999' : num, true);
+        document.querySelector('span.divCall').textContent = '00:00:00';
+        log(`${type} active for queue ${byId('lblqueueno').textContent}.`);
+    }
+    function request(num, type) {
+        if (active || document.querySelector('.OuterPopMsg')) return;
+        log(`${type} requested for queue ${num}.`);
+        if (type === 'CALL') {
+            byId('normalCalls').textContent = String(++normalCalls);
+            begin(num, type);
+            return;
+        }
+        const overlay = document.createElement('div');
+        overlay.className = 'OuterPopMsg';
+        overlay.innerHTML = `<div class="dialog-box" role="dialog" aria-modal="true" aria-label="Silent Call"><h2>Silent Call</h2><p>Do you want to call ${num} customer?</p><div class="button-row"><button id="confirmYes" disabled>YES</button><button id="confirmNo" class="secondary">NO</button></div></div>`;
+        document.body.append(overlay);
+        const yes = byId('confirmYes');
+        // A short simulated response gives the dialog time to be seen on screen.
+        setTimeout(() => {yes.disabled = false;}, 1000);
+        yes.onclick = () => {
+            overlay.remove();
+            log(`Silent Call confirmed for queue ${num}.`);
+            setTimeout(() => begin(num, type), 600);
+        };
+        byId('confirmNo').onclick = () => {overlay.remove(); log(`Silent Call cancelled for queue ${num}.`);};
+    }
+
+    window.onMonCall = el => request(el.dataset.queue, el.dataset.info);
+    document.querySelector('td[data-info="DONE"]').addEventListener('mousedown', () => {
+        if (!active || finishing || byId('manualDone').disabled) return;
+        finishing = true;
+        log(`Done requested for queue ${active}.`);
+        if (mode === 'timeout') {log('Simulated server is not responding. Waiting for the timeout safeguard…'); return;}
+        setTimeout(() => {
+            const finished = active;
+            document.querySelector(`[data-demo-row="${finished}"]`)?.remove();
+            active = null;
+            finishing = false;
+            document.querySelector('span.divCall').textContent = 'CALL';
+            current(document.querySelector('.monqueueinfo [data-queue]')?.dataset.queue || '-END-', false);
+            log(`Queue ${finished} completed and removed from the waiting list.`);
+        }, mode === 'slow' ? 8000 : 1200);
+    });
+    // Manual controls use the same UI events as the hospital-shaped fixture.
+    byId('manualDone').addEventListener('click', () => {
+        byId('manualDone').dispatchEvent(new MouseEvent('mousedown', {bubbles:true, button:0}));
+    });
+    byId('manualCall').onclick = () => {
+        const next = document.querySelector('.monqueueinfo [data-queue]');
+        if (next) request(next.dataset.queue, 'CALL');
+    };
+
+    const waits = mode === 'below' ? [899, 600, 280, 10] : [1200, 900, 899, 280];
+    waits.forEach((seconds, index) => {
+        const num = String(3001 + index);
+        const row = document.createElement('tr');
+        row.dataset.demoRow = num;
+        row.innerHTML = `<td><table class="monqueueinfo"><tbody><tr><td data-queue="${num}" data-tranid="${100 + index}">${num}</td><td><button class="row-action divSmallSilentCallIcon" data-info="Silent Call" data-queue="${num}" data-tranid="${100 + index}" onmousedown="onMonCall(this)">Silent</button><button class="row-action normal" data-info="CALL" data-queue="${num}" data-tranid="${100 + index}" onmousedown="onMonCall(this)">Call</button></td></tr></tbody></table></td><td>Demo service</td><td>9:53:11 AM</td><td class="wait-cell">${format(seconds)}</td>`;
+        byId('queueRows').append(row);
+    });
+    current('3001', false);
+    byId('scenario').value = mode;
+    byId('scenarioHint').textContent = descriptions[mode];
+    byId('scenario').onchange = event => {location.hash = event.target.value; location.reload();};
+    byId('reset').onclick = () => location.reload();
+    setInterval(() => {
+        if (active) document.querySelector('span.divCall').textContent = format(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+    log('Demo ready. Select 15 minutes and press START.');
+})();
+
+</script>
+  <script>
+(() => {
+    // Reinjection must never start a second loop in this tab.
+    if (globalThis.queueBeeAutomationLoaded) return;
+    globalThis.queueBeeAutomationLoaded = true;
+
+    const ding = new Audio("data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YV9vT18AZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAD///8BAP//AgD//wMA//8EAP//BQD//wYA//8HAP//CAD//wkA//8KAP//CwD//wwA//8NAP//DgD//w8A//8QAP//EQD//xIA//8TAP//FAD//xUA//8WAP//FwD//xgA//8ZAP//GgD//xsA//8cAP//HQD//x4A//8fAP//IAD//yEA//8iAP//IwD//yQA//8lAP//JgD//ycA//8oAP//KQD//yoA//8rAP//LAD//y0A//8uAP//LwD//zAA//8xAP//MgD//zMA//80AP//NQD//zYA//83AP//OAD//zkA//86AP//OwD//zwA//89AP//PgD//z8A");
+    const STEP_TIMEOUT_MS = 30000;
+    let revision = 0;
+    const completed = new Set();
+    const text = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
+    const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+    const get = keys => new Promise((resolve, reject) => {
+        chrome.storage.local.get(keys, value => chrome.runtime.lastError
+            ? reject(new Error(chrome.runtime.lastError.message)) : resolve(value));
+    });
+    const set = values => new Promise((resolve, reject) => {
+        chrome.storage.local.set(values, () => chrome.runtime.lastError
+            ? reject(new Error(chrome.runtime.lastError.message)) : resolve());
+    });
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local' && (changes.isRunning || changes.waitLimit)) revision++;
+    });
+    class Cancelled extends Error {}
+
+    function visible(el) {
+        return !!el?.isConnected && !el.closest('#maincmsTooltips, [hidden], [aria-hidden="true"]') &&
+            Array.from(el.getClientRects()).some(rect => rect.width > 0 && rect.height > 0) &&
+            getComputedStyle(el).visibility !== 'hidden';
+    }
+    function enabled(el) {
+        return visible(el) && !el.closest('[disabled], [aria-disabled="true"], .disabled') &&
+            getComputedStyle(el).pointerEvents !== 'none';
+    }
+    function durationSeconds(value) {
+        const match = value.trim().match(/^(?:(\d+):)?(\d{1,2}):(\d{2})$/);
+        if (!match || +match[2] > 59 || +match[3] > 59) return null;
+        return +(match[1] || 0) * 3600 + +match[2] * 60 + +match[3];
+    }
+
+    function waitHeader(table) {
+        return Array.from(table.rows).find(row => row.closest('table') === table &&
+            Array.from(row.cells).some(cell => /^wait\s+duration$/i.test(text(cell))));
+    }
+    function waitingListVisible() {
+        return Array.from(document.querySelectorAll('table')).some(table => visible(table) && waitHeader(table));
+    }
+    function waitingRows() {
+        const result = [];
+        for (const table of document.querySelectorAll('table')) {
+            const header = waitHeader(table);
+            if (!header || !visible(table)) continue;
+            let column = 0;
+            for (const cell of header.cells) {
+                if (/^wait\s+duration$/i.test(text(cell))) break;
+                column += cell.colSpan;
+            }
+            for (const row of table.rows) {
+                if (row === header || row.closest('table') !== table || !visible(row)) continue;
+                // The first outer cell contains a nested monqueueinfo table.
+                // Never scan that table, Issue Time, or the entire row for a time.
+                const seconds = durationSeconds(text(row.cells[column]));
+                const identity = row.cells[0]?.querySelector('[data-queue][data-tranid]');
+                if (seconds === null || !identity) continue;
+                const num = identity.getAttribute('data-queue');
+                const transaction = identity.getAttribute('data-tranid');
+                if (!/^[A-Za-z0-9-]+$/.test(num || '') || !transaction) continue;
+                const silent = Array.from(row.querySelectorAll('[data-info="Silent Call"][data-queue][data-tranid]'))
+                    .filter(el => el.getAttribute('data-queue') === num &&
+                        el.getAttribute('data-tranid') === transaction && enabled(el));
+                if (silent.length === 1) result.push({seconds, num, transaction, silent: silent[0], key: `${num}:${transaction}`});
+            }
+        }
+        return result;
+    }
+    function callTimer() {
+        const labels = Array.from(document.querySelectorAll('span.divCall[data-info="CALL"]')).filter(visible);
+        return labels.length === 1 ? durationSeconds(text(labels[0])) : null;
+    }
+    function selectedQueue() {
+        const label = document.querySelector('#lblqueueno');
+        return visible(label) ? text(label) : '';
+    }
+    function transactionPresent(candidate) {
+        return Array.from(document.querySelectorAll('.monqueueinfo [data-queue][data-tranid]')).some(el =>
+            el.getAttribute('data-queue') === candidate.num && el.getAttribute('data-tranid') === candidate.transaction);
+    }
+    function doneControl() {
+        const labels = Array.from(document.querySelectorAll('span.divDone[data-info="DONE"]')).filter(enabled);
+        return labels.length === 1 ? labels[0] : null;
+    }
+    function dialogs() {
+        return Array.from(document.querySelectorAll(
+            '[role="dialog"], .modal, .jconfirm-box, .swal2-popup, .sweet-alert, .OuterPopMsg'
+        )).filter(visible);
+    }
+    function silentConfirmation(num) {
+        // Custom QueueBee dialogs may lack an ARIA role. Find the exact heading,
+        // then the smallest container with YES and NO, scoped to this patient.
+        const titles = Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,div,span'))
+            .filter(el => visible(el) && el.children.length === 0 && text(el) === 'Silent Call');
+        for (const title of titles) {
+            for (let box = title.parentElement; box && box !== document.body; box = box.parentElement) {
+                const choices = Array.from(box.querySelectorAll('button,a,input,div,span,[role="button"]'))
+                    .filter(el => enabled(el) && (el.children.length === 0 || el.matches('button,a,[role="button"]')));
+                const yes = choices.filter(el => /^yes$/i.test(text(el) || el.value || ''));
+                const no = choices.filter(el => /^no$/i.test(text(el) || el.value || ''));
+                if (!yes.length || !no.length) continue;
+                const numbers = text(box).match(/\b[A-Za-z]*\d+[A-Za-z0-9-]*\b/g) || [];
+                if (yes.length === 1 && no.length === 1 && numbers.length === 1 && numbers[0] === num) {
+                    return {yes: yes[0]};
+                }
+                break;
+            }
+        }
+        return null;
+    }
+    function activate(el) {
+        if (!enabled(el)) throw new Error('The intended control is no longer available.');
+        // Captured row markup uses onmousedown="onMonCall(this)".
+        // Target the exact node, never coordinates or a neighbouring CALL icon.
+        const mouse = {bubbles: true, cancelable: true, view: window, button: 0};
+        if (el.hasAttribute('onmousedown')) {
+            el.dispatchEvent(new MouseEvent('mousedown', mouse));
+        } else {
+            // Main controls can use delegated mouse handlers as well as click.
+            // Send one mouse gesture to the exact label; never retry the action.
+            el.dispatchEvent(new MouseEvent('mousedown', mouse));
+            if (!enabled(el)) return;
+            el.dispatchEvent(new MouseEvent('mouseup', mouse));
+            el.click();
+        }
+    }
+    async function check(run, deadline) {
+        const config = await get(['isRunning', 'waitLimit']);
+        if (!config.isRunning || revision !== run.revision || Number(config.waitLimit ?? 25) !== run.threshold) {
+            throw new Cancelled('Settings changed.');
+        }
+        if (deadline && Date.now() >= deadline) throw new Error('Timed out waiting for QueueBee.');
+    }
+    async function waitFor(run, predicate) {
+        const deadline = Date.now() + STEP_TIMEOUT_MS;
+        while (true) {
+            await check(run, deadline);
+            const value = predicate();
+            if (value) return value;
+            await sleep(250);
+        }
+    }
+    async function record(candidate) {
+        const data = await get(['clearedCount', 'activityLogs']);
+        const logs = Array.isArray(data.activityLogs) ? data.activityLogs : [];
+        const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+        await set({clearedCount: (Number(data.clearedCount) || 0) + 1,
+            activityLogs: [...logs, {num: candidate.num, time}].slice(-50)});
+    }
+    async function processOne(run, threshold) {
+        // A timer identifies an active call, including a manually started call.
+        if (callTimer() !== null || dialogs().length) return;
+        const candidate = waitingRows().find(item => item.seconds >= threshold * 60 && !completed.has(item.key));
+        if (!candidate) return;
+        let started = false;
+        try {
+            await check(run);
+            await set({automationMessage: `Silent Call: ${candidate.num}`});
+            await check(run);
+            // AJAX may have replaced/reordered rows while storage was read.
+            const fresh = waitingRows().find(item => item.key === candidate.key && item.seconds >= threshold * 60);
+            if (!fresh || callTimer() !== null || dialogs().length) return;
+            activate(fresh.silent);
+            started = true;
+            // Support both immediate silent calls and YES/NO confirmations.
+            await waitFor(run, () => callTimer() !== null || silentConfirmation(candidate.num));
+            const confirmation = silentConfirmation(candidate.num);
+            if (confirmation) {
+                await check(run);
+                if (silentConfirmation(candidate.num)?.yes !== confirmation.yes) throw new Error('Confirmation changed.');
+                activate(confirmation.yes);
+            }
+            await waitFor(run, () => {
+                if (callTimer() === null) return false;
+                if (selectedQueue() !== candidate.num) throw new Error('Patient number changed.');
+                return !dialogs().length && doneControl();
+            });
+            await check(run);
+            if (selectedQueue() !== candidate.num || callTimer() === null || dialogs().length) {
+                throw new Error('Patient state changed before Done.');
+            }
+            const done = doneControl();
+            if (!done) throw new Error('The exact DONE control is unavailable.');
+            activate(done);
+            // A click alone is not completion: require both the timer to end and
+            // this transaction to leave the waiting list before counting it.
+            await waitFor(run, () => callTimer() === null && waitingListVisible() &&
+                !transactionPresent(candidate) && !dialogs().length);
+            completed.add(candidate.key);
+            await record(candidate);
+            ding.play().catch(() => {});
+            await set({automationMessage: `Completed: ${candidate.num}`});
+        } catch (error) {
+            if (started) await set({isRunning: false,
+                automationMessage: `Stopped: ${error.message} Check queue ${candidate.num} before START.`});
+            throw error;
+        }
+    }
+    async function scan() {
+        try {
+            const config = await get(['isRunning', 'waitLimit']);
+            if (config.isRunning) {
+                const threshold = Number(config.waitLimit ?? 25);
+                if (![5,10,15,20,25,30,35,40].includes(threshold)) throw new Error('Choose a valid wait threshold (5–40 minutes).');
+                await processOne({revision, threshold}, threshold);
+            }
+        } catch (error) {
+            if (!(error instanceof Cancelled)) {
+                console.warn('QueueBee stopped:', error.message);
+                const config = await get(['isRunning']);
+                if (config.isRunning) await set({isRunning: false, automationMessage: `Stopped: ${error.message}`});
+            }
+        } finally {
+            // Schedule AFTER completion. Background throttling may delay a step,
+            // but cannot start another sequence while this one is pending.
+            setTimeout(scan, 2000);
+        }
+    }
+    scan();
+})();
+
+</script>
+  <script>
+function updateUI() {
+  chrome.storage.local.get(['waitLimit', 'isRunning', 'clearedCount', 'activityLogs', 'automationMessage'], (res) => {
+    // FIX: Set the dropdown value to what is in storage
+    if (res.waitLimit) {
+        document.getElementById('timeLimit').value = res.waitLimit;
+    }
+
+    document.getElementById('clearCount').innerText = res.clearedCount || 0;
+
+    const statusDiv = document.getElementById('status');
+    document.getElementById('automationMessage').textContent = res.automationMessage || '';
+    if (res.isRunning) {
+        statusDiv.innerText = "SYSTEM ACTIVE";
+        statusDiv.className = "status-on";
+    } else {
+        statusDiv.innerText = "SYSTEM IDLE";
+        statusDiv.className = "status-off";
+    }
+
+    const logList = document.getElementById('logList');
+    if (res.activityLogs && res.activityLogs.length > 0) {
+        logList.innerHTML = res.activityLogs.map(log =>
+            `<div class="log-entry"><span class="log-num">#${log.num}</span><span class="log-time">${log.time}</span></div>`
+        ).reverse().join('');
+    }
+  });
+}
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  const limit = document.getElementById('timeLimit').value;
+  // Save the limit immediately when Start is clicked
+  chrome.storage.local.set({ waitLimit: limit, isRunning: true, automationMessage: '' }, updateUI);
+});
+
+document.getElementById('stopBtn').addEventListener('click', () => {
+  chrome.storage.local.set({ isRunning: false, automationMessage: 'Stopped by user.' }, updateUI);
+});
+
+// Update the limit even if they change the dropdown without clicking start
+document.getElementById('timeLimit').addEventListener('change', (e) => {
+    chrome.storage.local.set({ waitLimit: e.target.value });
+});
+
+updateUI();
+setInterval(updateUI, 2000);
+
+</script>
+</body>
+</html>

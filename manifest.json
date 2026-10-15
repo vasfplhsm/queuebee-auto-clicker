@@ -1,7 +1,7 @@
-﻿{
+{
   "manifest_version": 3,
-  "name": "QueueBee Hospital Optimizer v8",
-  "version": "8.0",
+  "name": "QueueBee Hospital Optimizer v8.1",
+  "version": "8.1",
   "permissions": ["storage"],
   "host_permissions": ["http://10.138.119.134/*"],
   "action": { "default_popup": "popup.html" },
