@@ -16,7 +16,7 @@ Internal Chrome extension to automate patient waiting list management and mainta
 3.  Click **Load unpacked**.
 4.  Select this `queuebee-auto-clicker` folder.
 
-### Updating to v8.1
+### Updating to v1.0
 
 Click **STOP** before updating. At `chrome://extensions/`, reload this extension,
 then **refresh every open QueueBee dashboard tab** to remove the old timers.
