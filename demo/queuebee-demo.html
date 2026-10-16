@@ -246,7 +246,7 @@
     if (globalThis.queueBeeAutomationLoaded) return;
     globalThis.queueBeeAutomationLoaded = true;
 
-    const QUEUEBEE_BUILD = 'DONE-2';
+    const QUEUEBEE_BUILD = 'DONE-3';
     chrome.runtime.onMessage?.addListener((message, sender, reply) => {
         if (message?.type === 'queuebee:build') reply({build:QUEUEBEE_BUILD});
         return false;
@@ -255,6 +255,7 @@
 
     const ding = new Audio("data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YV9vT18AZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAD///8BAP//AgD//wMA//8EAP//BQD//wYA//8HAP//CAD//wkA//8KAP//CwD//wwA//8NAP//DgD//w8A//8QAP//EQD//xIA//8TAP//FAD//xUA//8WAP//FwD//xgA//8ZAP//GgD//xsA//8cAP//HQD//x4A//8fAP//IAD//yEA//8iAP//IwD//yQA//8lAP//JgD//ycA//8oAP//KQD//yoA//8rAP//LAD//y0A//8uAP//LwD//zAA//8xAP//MgD//zMA//80AP//NQD//zYA//83AP//OAD//zkA//86AP//OwD//zwA//89AP//PgD//z8A");
     const STEP_TIMEOUT_MS = 30000;
+    const DONE_LOAD_DELAY_MS = 5000;
     let revision = 0;
     const completed = new Set();
     const text = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
@@ -465,7 +466,8 @@
                 if (silentConfirmation(candidate.num)?.yes !== confirmation.yes) throw new Error('Confirmation changed.');
                 activate(confirmation.yes);
             }
-            await set({automationMessage:`Waiting for DONE: ${candidate.num}`});
+            await set({automationMessage:`Waiting 5 seconds for queue ${candidate.num} to load before DONE`});
+            let doneNotBefore = null;
             await waitFor(run, () => {
                 if (callTimer() === null) return false;
                 const selected = selectedQueue();
@@ -473,10 +475,15 @@
                 // redraws. Wait for it; never click Done without a matching number.
                 if (!selected || selected === '-END-') return false;
                 if (selected !== candidate.num) throw new Error('Patient number changed.');
-                return !dialogs().length && doneControl() && buttonLockRemaining() === 0;
+                if (dialogs().length) return false;
+                // Give the active patient's service panel five seconds to load.
+                // Keep checking STOP, identity and readiness throughout the pause.
+                if (doneNotBefore === null) doneNotBefore = Date.now() + DONE_LOAD_DELAY_MS;
+                return Date.now() >= doneNotBefore && doneControl() && buttonLockRemaining() === 0;
             }, () => callTimer() === null ? 'the active CALL timer' : dialogs().length
                 ? 'the confirmation dialog to close' : selectedQueue() !== candidate.num
-                    ? `queue ${candidate.num} to appear in the patient panel` : !doneControl()
+                    ? `queue ${candidate.num} to appear in the patient panel` : doneNotBefore === null || Date.now() < doneNotBefore
+                        ? 'the five-second loading pause before DONE' : !doneControl()
                         ? 'the enabled DONE control' : buttonLockRemaining() === null
                             ? 'the QueueBee button-lock reader' : 'the QueueBee button lock to expire');
             await check(run);
@@ -526,7 +533,7 @@
 
 </script>
   <script>
-const QUEUEBEE_BUILD = 'DONE-2';
+const QUEUEBEE_BUILD = 'DONE-3';
 
 function checkDashboard() {
   // The standalone HTML simulation has no native extension ID. An installed

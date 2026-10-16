@@ -1,4 +1,4 @@
-﻿const QUEUEBEE_BUILD = 'DONE-2';
+﻿const QUEUEBEE_BUILD = 'DONE-3';
 
 function checkDashboard() {
   // The standalone HTML simulation has no native extension ID. An installed

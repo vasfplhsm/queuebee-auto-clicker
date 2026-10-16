@@ -55,6 +55,7 @@ fs.writeFileSync(path.join(output, 'READ-ME.txt'), `QUEUEBEE v1.0 — INSTALLED 
 7. Choose Threshold: 15 Mins and click START. You may close the popup and watch the test dashboard.
 
 Expected: queues 3001 and 3002 clear; 3003 (14:59) and 3004 (04:40) remain.
+Each active queue waits at least five seconds to load before Done is clicked.
 The real extension counter should show 2 and Normal calls should remain 0.
 STOP and the threshold controls are in the extension popup, not in the web page.
 Reset demo stops automation and clears test storage before restarting the scenario.

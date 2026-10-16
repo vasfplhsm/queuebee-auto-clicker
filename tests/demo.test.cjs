@@ -44,7 +44,7 @@ const timeline = page => page.locator('#timeline').innerText();
 test('standalone file runs the real automation and leaves below-threshold queues', async t => {
     const page = await open(t);
     await page.locator('#startBtn').click();
-    await page.clock.runFor(15000);
+    await page.clock.runFor(25000);
     const state = await read(page);
     assert.equal(state.clearedCount, 2);
     assert.deepEqual(state.activityLogs.map(log => log.num), ['3001','3002']);
@@ -57,7 +57,7 @@ test('threshold controls affect the demo instead of a separate example algorithm
     const page = await open(t);
     await page.locator('#timeLimit').selectOption('5');
     await page.locator('#startBtn').click();
-    await page.clock.runFor(20000);
+    await page.clock.runFor(35000);
     assert.equal((await read(page)).clearedCount, 3);
     assert.equal(await page.locator('#queueRows > tr').count(), 1);
     assert.equal(await page.locator('#queueRows > tr').getAttribute('data-demo-row'), '3004');
@@ -76,7 +76,7 @@ test('all-below scenario leaves every patient untouched', async t => {
 test('slow demo shows one pending transaction and STOP prevents new actions', async t => {
     const page = await open(t, 'slow');
     await page.locator('#startBtn').click();
-    await page.clock.runFor(7000);
+    await page.clock.runFor(12000);
     assert.equal((await read(page)).clearedCount, 0);
     assert.equal((await timeline(page)).match(/Silent Call requested/g)?.length, 1);
     await page.locator('#stopBtn').click();
@@ -100,7 +100,7 @@ test('wrong-patient demo stops before Done', async t => {
 test('timeout demo stops without counting an unfinished patient', async t => {
     const page = await open(t, 'timeout');
     await page.locator('#startBtn').click();
-    await page.clock.runFor(37000);
+    await page.clock.runFor(45000);
     const state = await read(page);
     assert.equal(state.isRunning, false);
     assert.equal(state.clearedCount, 0);
@@ -121,7 +121,7 @@ test('manual CALL is recorded and automation leaves it alone', async t => {
 test('scenario selection reloads into a fresh idle demo', async t => {
     const page = await open(t);
     await page.locator('#startBtn').click();
-    await page.clock.runFor(15000);
+    await page.clock.runFor(25000);
     await Promise.all([
         page.waitForEvent('load'),
         page.locator('#scenario').selectOption('below')

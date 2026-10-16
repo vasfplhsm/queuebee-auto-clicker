@@ -12,8 +12,8 @@ Internal Chrome extension to automate patient waiting list management and mainta
 
 ## 🛠 Installation
 
-Download the [hospital extension v1.0, build DONE-2](downloads/queuebee-extension-v1.0-DONE-2.zip),
-extract it, and load its `queuebee-extension-v1.0-DONE-2` folder using the steps below.
+Download the [hospital extension v1.0, build DONE-3](downloads/queuebee-extension-v1.0-DONE-3.zip),
+extract it, and load its `queuebee-extension-v1.0-DONE-3` folder using the steps below.
 This package runs on the hospital IP and contains no demo dashboard.
 
 1.  Open **Google Chrome** and go to `chrome://extensions/`.
@@ -23,7 +23,12 @@ This package runs on the hospital IP and contains no demo dashboard.
 
 ### Updating to v1.0
 
-Build **DONE-2** waits for QueueBee's own button lock to expire before Done,
+Build **DONE-3** gives each active patient **five seconds to load before Done**.
+The pause starts once the call timer and matching queue number appear and the
+confirmation closes. STOP and patient checks remain active during the pause;
+Done still waits longer if its control or QueueBee's lock is not ready.
+
+It also waits for QueueBee's own button lock to expire before Done,
 targets the outer `.buttonDone` action, and checks the `.trDone` cursor used
 by `_MultiButtonDone`. The supplied QB10 5.164 handler rejects presses within
 200 ms of the last action, even when Done already appears red. A read-only
@@ -32,13 +37,13 @@ QueueBee's lock function. The regression test reproduces the ignored click in
 the previous build and completes successive queues with this fix.
 
 This build also adds a live dashboard build check. The popup must display
-**Build DONE-2 · Dashboard connected (DONE-2)** before START is enabled.
+**Build DONE-3 · Dashboard connected (DONE-3)** before START is enabled.
 If the tab still contains an older script, the popup requests a dashboard
 refresh. STOP remains available. Chrome's extension version stays at 1.0.
 
 For a clean update: STOP, remove older QueueBee extension copies, install the
 new extracted folder, and close and reopen the QueueBee dashboard tab. Opening
-the popup on that tab should show the matching DONE-2 build. Reloading an
+the popup on that tab should show the matching DONE-3 build. Reloading an
 extension does not replace content scripts already running in an open page.
 
 The Done completion update also ignores fully transparent old

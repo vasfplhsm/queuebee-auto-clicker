@@ -68,6 +68,7 @@ async function fixture(t, options = {}) {
             }
         }};
         window.beginCall = num => {
+            window.callStartedAt = Date.now();
             document.querySelector('.OuterPopMsg')?.remove();
             document.querySelector('#lblqueueno').textContent = options.wrongPatient || num;
             if (options.patientLabelDelay) {
@@ -110,6 +111,7 @@ async function fixture(t, options = {}) {
         const finishCall = event => {
             if (options.directDoneHandler && event.target !== doneRoot) return;
             if (options.requirePressedMouse && event.buttons !== 1) return;
+            window.doneRequestedAt = Date.now();
             events.push(['DONE', document.querySelector('#lblqueueno').textContent]);
             if (options.holdDone) return;
             const finish = () => {
@@ -144,7 +146,7 @@ async function fixture(t, options = {}) {
     await page.addScriptTag({path: path.resolve(__dirname, '../content.js')});
     return page;
 }
-const advance = (page, ms = 3000) => page.clock.runFor(ms);
+const advance = (page, ms = 8000) => page.clock.runFor(ms);
 const events = page => page.evaluate(() => events);
 
 test('ignores Issue Time and nested rows; leaves short and invalid waits alone', async t => {
@@ -158,13 +160,13 @@ test('dashboard reports the running content-script build without changing automa
     const response = await p.evaluate(() => new Promise(resolve => {
         extensionMessageListener({type:'queuebee:build'}, {}, resolve);
     }));
-    assert.deepEqual(response,{build:'DONE-2'});
+    assert.deepEqual(response,{build:'DONE-3'});
     assert.deepEqual(await events(p),[]);
 });
 
 test('threshold boundary, HH:MM:SS and MM:SS; counts each completed transaction once', async t => {
     const p = await fixture(t, {rows:[['3118','00:15:00'], ['3119','01:00:00'], ['3120','15:00'], ['3121','00:14:59']]});
-    await advance(p, 10000);
+    await advance(p, 25000);
     assert.deepEqual(await events(p), [['Silent Call','3118'],['DONE','3118'],['Silent Call','3119'],['DONE','3119'],['Silent Call','3120'],['DONE','3120']]);
     assert.equal(await p.evaluate(() => state.clearedCount), 3);
     assert.deepEqual(await p.evaluate(() => state.activityLogs.map(l => l.num)), ['3118','3119','3120']);
@@ -217,7 +219,7 @@ test('Done waits for a briefly blank patient label instead of aborting during re
     const p = await fixture(t, {patientLabelDelay:1000});
     await advance(p, 500);
     assert.deepEqual(await events(p), [['Silent Call','3118']]);
-    await advance(p, 2500);
+    await advance(p, 6500);
     assert.deepEqual(await events(p), [['Silent Call','3118'],['DONE','3118']]);
     assert.equal(await p.evaluate(() => state.clearedCount), 1);
 });
@@ -230,35 +232,66 @@ test('Done targets the outer buttonDone action with the captured direct click ha
     assert.equal(await p.evaluate(()=>state.clearedCount),1);
 });
 
+test('Done allows at least five seconds for the active patient to load', async t => {
+    const p = await fixture(t,{outerDoneWrapper:true,buttonLockMs:200});
+    await advance(p,4500);
+    assert.deepEqual(await events(p),[['Silent Call','3118']]);
+    assert.equal(await p.evaluate(()=>state.clearedCount || 0),0);
+    assert.match(await p.evaluate(()=>state.automationMessage),/Waiting 5 seconds/);
+    await advance(p,1000);
+    assert.deepEqual(await events(p),[['Silent Call','3118'],['DONE','3118']]);
+    assert.ok(await p.evaluate(()=>doneRequestedAt-callStartedAt >= 5000));
+    assert.equal(await p.evaluate(()=>state.clearedCount),1);
+});
+
+test('the five-second pause starts after activation, including a slow Silent Call response', async t => {
+    const p = await fixture(t,{outerDoneWrapper:true,noResponse:true});
+    await p.evaluate(()=>setTimeout(()=>beginCall('3118'),3000));
+    await advance(p,7000);
+    assert.deepEqual(await events(p),[['Silent Call','3118']]);
+    await advance(p,2000);
+    assert.deepEqual(await events(p),[['Silent Call','3118'],['DONE','3118']]);
+    assert.ok(await p.evaluate(()=>doneRequestedAt-callStartedAt >= 5000));
+});
+
+test('STOP during the five-second loading pause cancels Done', async t => {
+    const p = await fixture(t,{outerDoneWrapper:true});
+    await advance(p,2000);
+    await p.evaluate(()=>chrome.storage.local.set({isRunning:false}));
+    await advance(p,10000);
+    assert.deepEqual(await events(p),[['Silent Call','3118']]);
+    assert.equal(await p.evaluate(()=>state.clearedCount || 0),0);
+});
+
 test('Done waits past the captured 200 ms button lock and completes successive queues', async t => {
     const p = await fixture(t,{outerDoneWrapper:true,buttonLockMs:200,rows:[['3118','00:15:00'],['3119','00:16:00']]});
     await advance(p,100);
     assert.deepEqual(await events(p),[['Silent Call','3118']]);
-    await advance(p,5000);
+    await advance(p,13000);
     assert.deepEqual(await events(p),[['Silent Call','3118'],['DONE','3118'],['Silent Call','3119'],['DONE','3119']]);
     assert.equal(await p.evaluate(()=>state.clearedCount),2);
 });
 
 test('Done waits for the actual trDone cursor readiness condition', async t => {
-    const p = await fixture(t,{outerDoneWrapper:true,doneCursorDelay:1000});
-    await advance(p,500);
+    const p = await fixture(t,{outerDoneWrapper:true,doneCursorDelay:7000});
+    await advance(p,6500);
     assert.deepEqual(await events(p),[['Silent Call','3118']]);
-    await advance(p,2500);
+    await advance(p,1500);
     assert.deepEqual(await events(p),[['Silent Call','3118'],['DONE','3118']]);
 });
 
 test('STOP during the button lock prevents Done', async t => {
-    const p = await fixture(t,{outerDoneWrapper:true,buttonLockMs:2000});
-    await advance(p,500);
+    const p = await fixture(t,{outerDoneWrapper:true,buttonLockMs:8000});
+    await advance(p,5500);
     await p.evaluate(()=>chrome.storage.local.set({isRunning:false}));
-    await advance(p,4000);
+    await advance(p,8000);
     assert.deepEqual(await events(p),[['Silent Call','3118']]);
     assert.equal(await p.evaluate(()=>state.clearedCount || 0),0);
 });
 
 test('a patient changed while Done is locked is never completed', async t => {
-    const p = await fixture(t,{outerDoneWrapper:true,buttonLockMs:2000});
-    await advance(p,500);
+    const p = await fixture(t,{outerDoneWrapper:true,buttonLockMs:8000});
+    await advance(p,5500);
     await p.evaluate(()=>{document.querySelector('#lblqueueno').textContent='9999';});
     await advance(p,3000);
     assert.deepEqual(await events(p),[['Silent Call','3118']]);
@@ -323,7 +356,7 @@ test('leaves an existing manual call alone', async t => {
 
 test('waits for completion before counting or starting another queue', async t => {
     const p = await fixture(t, {rows:[['3118','00:20:00'], ['3119','00:18:00']],finishDelay:8000});
-    await advance(p, 5000);
+    await advance(p, 10000);
     assert.deepEqual(await events(p), [['Silent Call','3118'],['DONE','3118']]);
     assert.equal(await p.evaluate(() => state.clearedCount || 0), 0);
     await advance(p, 6000);
@@ -343,7 +376,7 @@ test('STOP cancels pending actions and never resumes them after START', async t 
 
 test('waits for the refreshed waiting list, not an empty loading view', async t => {
     const p = await fixture(t, {reloadDelay:8000});
-    await advance(p, 5000);
+    await advance(p, 10000);
     assert.equal(await p.evaluate(() => state.clearedCount || 0), 0);
     await advance(p, 4000);
     assert.equal(await p.evaluate(() => state.clearedCount), 1);
@@ -351,7 +384,7 @@ test('waits for the refreshed waiting list, not an empty loading view', async t 
 
 test('a stalled Done is clicked once, never counted, then stops', async t => {
     const p = await fixture(t, {holdDone:true});
-    await advance(p, 35000);
+    await advance(p, 40000);
     assert.deepEqual(await events(p), [['Silent Call','3118'], ['DONE','3118']]);
     assert.equal(await p.evaluate(() => state.isRunning), false);
     assert.equal(await p.evaluate(() => state.clearedCount || 0), 0);
@@ -377,7 +410,7 @@ test('a background timer delayed past the deadline cannot click Done', async t =
 
 test('does not count a transaction that remains in the waiting list', async t => {
     const p = await fixture(t, {keepRow:true});
-    await advance(p, 35000);
+    await advance(p, 40000);
     assert.equal(await p.evaluate(() => state.clearedCount || 0), 0);
     assert.equal(await p.evaluate(() => state.isRunning), false);
 });

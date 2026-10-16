@@ -93,7 +93,7 @@ test('isolated content script interacts with main-world queue controls and share
     const evaluate = await injectHarness(page);
     assert.equal(await page.locator('#extensionStatus').innerText(),'Extension connected');
     await evaluate(`chrome.storage.local.set({isRunning:true,waitLimit:'15'})`);
-    await page.waitForFunction(() => document.querySelector('#extensionCleared').textContent==='2',{},{timeout:20000});
+    await page.waitForFunction(() => document.querySelector('#extensionCleared').textContent==='2',{},{timeout:30000});
     assert.deepEqual(await page.locator('#queueRows > tr').evaluateAll(rows=>rows.map(row=>row.dataset.demoRow)),['3003','3004']);
     assert.equal(await page.locator('#normalCalls').innerText(),'0');
     // Extension globals/API shim stay outside the simulated website's world.
