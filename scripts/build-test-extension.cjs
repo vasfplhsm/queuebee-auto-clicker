@@ -7,11 +7,14 @@ const manifest = JSON.parse(read('manifest.json'));
 manifest.name = 'QueueBee v1.0 — OFFLINE TEST';
 manifest.description = 'Test the installed extension against the included fake queue dashboard. Local test file only.';
 manifest.host_permissions = ['file:///*/queuebee-test.html'];
-manifest.content_scripts = [{matches:['file:///*/queuebee-test.html'], js:['test-status.js','content.js'], run_at:'document_idle'}];
+manifest.content_scripts = [
+    {matches:['file:///*/queuebee-test.html'], js:['page-state.js'], world:'MAIN', run_at:'document_start'},
+    {matches:['file:///*/queuebee-test.html'], js:['test-status.js','content.js'], run_at:'document_idle'}
+];
 fs.mkdirSync(output, {recursive:true});
 fs.writeFileSync(path.join(output, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
 // Byte-identical automation and popup code; the test page does not load them itself.
-for (const name of ['content.js', 'popup.js']) fs.copyFileSync(path.join(root,name), path.join(output,name));
+for (const name of ['page-state.js', 'content.js', 'popup.js']) fs.copyFileSync(path.join(root,name), path.join(output,name));
 fs.writeFileSync(path.join(output, 'popup.html'), read('popup.html').replace('Hospital Queue Pro + Log', 'QueueBee — OFFLINE TEST'));
 for (const [from, to] of [['demo/demo.css','demo.css'], ['demo/demo.js','demo.js'], ['demo/test-status.js','test-status.js']]) {
     fs.copyFileSync(path.join(root,from), path.join(output,to));
@@ -34,6 +37,7 @@ let html = read('demo/index.html')
     </aside>`)
     .replace(/<footer>[\s\S]*?<\/footer>/, '<footer>The installed test extension injects its content script into this local file and uses real Chrome extension storage and the real popup. This page simulates only the queue server. The test build cannot run on the hospital dashboard.</footer>')
     .replace('  <script src="storage-mock.js"></script>\n', '')
+    .replace('  <script src="../page-state.js"></script>\n', '')
     .replace('  <script src="../content.js"></script>\n', '')
     .replace('  <script src="../popup.js"></script>\n', '');
 if (html.includes('storage-mock') || html.includes('src="../content.js"') || html.includes('id="startBtn"')) {

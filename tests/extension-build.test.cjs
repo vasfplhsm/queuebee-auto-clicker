@@ -30,6 +30,7 @@ async function dashboard(t, scenario = 'baseline') {
 async function injectHarness(page) {
     // This checks the actual isolated-world DOM boundary. Chrome API mocking is
     // confined to this test harness; none is included in the downloadable build.
+    await page.addScriptTag({path:path.join(directory,'page-state.js')});
     const cdp = await page.context().newCDPSession(page);
     const {frameTree} = await cdp.send('Page.getFrameTree');
     const {executionContextId} = await cdp.send('Page.createIsolatedWorld', {frameId:frameTree.frame.id,worldName:'extension-test-harness'});
@@ -63,12 +64,15 @@ async function injectHarness(page) {
 }
 
 test('test package uses the exact extension code, with local-file matching and no hospital access', () => {
-    for (const name of ['content.js','popup.js']) {
+    for (const name of ['page-state.js','content.js','popup.js']) {
         assert.deepEqual(fs.readFileSync(path.join(directory,name)),fs.readFileSync(path.join(root,name)));
     }
     const manifest = JSON.parse(fs.readFileSync(path.join(directory,'manifest.json'),'utf8'));
     assert.equal(manifest.version,'1.0');
     assert.deepEqual(manifest.content_scripts[0].matches,['file:///*/queuebee-test.html']);
+    assert.equal(manifest.content_scripts[0].world,'MAIN');
+    assert.deepEqual(manifest.content_scripts[0].js,['page-state.js']);
+    assert.deepEqual(manifest.content_scripts[1].js,['test-status.js','content.js']);
     assert.deepEqual(manifest.host_permissions,['file:///*/queuebee-test.html']);
     assert.deepEqual(manifest.permissions,['storage']);
     assert.equal(fs.existsSync(path.join(directory,'storage-mock.js')),false);
@@ -105,4 +109,24 @@ test('isolated content script refuses Done when the simulated server switches pa
     assert.equal(await page.locator('#extensionRunning').innerText(),'IDLE');
     assert.equal(await page.locator('#extensionCleared').innerText(),'0');
     assert.doesNotMatch(await page.locator('#timeline').innerText(),/Done requested/);
+});
+
+test('isolated content script reads the main-world lock without acquiring it', async t => {
+    const page = await dashboard(t);
+    const evaluate = await injectHarness(page);
+    await page.evaluate(() => {
+        window.theButtonLockTime = 60000;
+        window.dtLastBtnLock = Date.now();
+        window.savedLockTimestamp = dtLastBtnLock;
+    });
+    const result = await evaluate(`(() => {
+        document.dispatchEvent(new Event('queuebee:read-button-lock'));
+        return {
+            globalsHidden:typeof theButtonLockTime === 'undefined',
+            remaining:Number(document.documentElement.getAttribute('data-queuebee-button-lock'))
+        };
+    })()`);
+    assert.equal(result.globalsHidden,true);
+    assert.ok(result.remaining > 59000 && result.remaining <= 60001);
+    assert.equal(await page.evaluate(()=>dtLastBtnLock===savedLockTimestamp),true);
 });

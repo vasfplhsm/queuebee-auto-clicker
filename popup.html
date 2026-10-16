@@ -23,6 +23,7 @@
 </head>
 <body>
   <h3>Hospital Queue Pro + Log</h3>
+  <p id="buildStatus" role="status" style="font-size:11px;line-height:1.5;overflow-wrap:anywhere;">Build DONE-2 · Checking dashboard…</p>
   <div class="counter-box">
     <div id="clearCount">0</div>
     <div class="label">Total Cleared Today</div>
@@ -39,7 +40,7 @@
     <option value="40">Threshold: 40 Mins</option>
   </select>
   <div class="btn-group">
-    <button id="startBtn">START</button>
+    <button id="startBtn" disabled>START</button>
     <button id="stopBtn">STOP</button>
   </div>
   <div id="status" class="status-off">SYSTEM IDLE</div>

@@ -28,11 +28,31 @@ async function fixture(t, options = {}) {
       </td></tr></table></td><td>Kaunter Biasa</td><td></td><td>9:53:11 AM</td><td><span title="KPI:00:30:00">${wait}</span></td></tr>`).join('')}
       </tbody></table>`);
     await page.evaluate(options => {
+        if (options.liveSnapshot) {
+            document.querySelector('td[data-info="DONE"]').outerHTML = options.liveSnapshot.done;
+        }
+        if (options.outerDoneWrapper) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'pointer buttonCall buttonDone';
+            wrapper.innerHTML = '<table><tbody><tr></tr></tbody></table>';
+            wrapper.querySelector('tr').append(document.querySelector('td[data-info="DONE"]'));
+            document.querySelector('#controls').after(wrapper);
+            wrapper.parentElement.insertBefore(Object.assign(document.createElement('div'), {className:'trDone'}), wrapper);
+            document.querySelector('.trDone').style.cursor = options.doneCursor || 'pointer';
+        }
         window.events = [];
+        window.theButtonLockTime = options.buttonLockMs || 0;
+        window.dtLastBtnLock = 0;
+        window.onPressDelay = () => {
+            const now = Date.now();
+            if (Math.abs(now - dtLastBtnLock) <= theButtonLockTime) return false;
+            dtLastBtnLock = now;
+            return true;
+        };
         window.options = options;
         const listeners = [];
         window.state = {isRunning: true, waitLimit: '15', ...options.storage};
-        window.chrome = {runtime: {}, storage: {
+        window.chrome = {runtime: {onMessage:{addListener(fn){window.extensionMessageListener=fn;}}}, storage: {
             onChanged: {addListener(fn) {listeners.push(fn);}},
             local: {
                 get(keys, callback) {callback(Object.fromEntries(keys.filter(k => k in state).map(k => [k, state[k]])));},
@@ -55,6 +75,10 @@ async function fixture(t, options = {}) {
                 setTimeout(() => {document.querySelector('#lblqueueno').textContent = num;}, options.patientLabelDelay);
             }
             document.querySelector('span.divCall').innerHTML = '<div>00:00:01</div>';
+            if (options.liveSnapshot) {
+                document.querySelector('#lblqueueno').outerHTML = options.liveSnapshot.queue;
+                document.querySelector('span.divCall[data-info="CALL"]').outerHTML = options.liveSnapshot.call;
+            }
             if (options.fadedOverlay) {
                 const overlay = document.createElement('div');
                 overlay.className = 'OuterPopMsg';
@@ -62,8 +86,13 @@ async function fixture(t, options = {}) {
                 overlay.textContent = 'Previous confirmation';
                 document.body.append(overlay);
             }
+            if (options.doneCursorDelay) {
+                document.querySelector('.trDone').style.cursor = 'default';
+                setTimeout(() => {document.querySelector('.trDone').style.cursor = 'pointer';}, options.doneCursorDelay);
+            }
         };
         window.onMonCall = el => {
+            if (options.buttonLockMs && !onPressDelay()) return;
             const num = el.dataset.queue;
             events.push([el.dataset.info, num]);
             if (options.noResponse) return;
@@ -75,7 +104,7 @@ async function fixture(t, options = {}) {
             box.querySelector('#yes').onclick = () => { events.push(['YES', num]); beginCall(num); };
             document.body.append(box);
         };
-        const doneRoot = document.querySelector('.btnMainCall[data-info="DONE"]');
+        const doneRoot = document.querySelector(options.outerDoneWrapper ? '.buttonDone' : '.btnMainCall[data-info="DONE"]');
         if (options.decorativeDoneLabel) document.querySelector('span.divDone').style.pointerEvents = 'none';
         if (options.disabledDone) doneRoot.classList.add('disabled');
         const finishCall = event => {
@@ -95,13 +124,23 @@ async function fixture(t, options = {}) {
             };
             if (options.finishDelay) setTimeout(finish, options.finishDelay); else finish();
         };
-        if (options.directDoneHandler) {
+        if (options.outerDoneWrapper) {
+            doneRoot.addEventListener('click', event => {
+                event.stopPropagation();
+                event.preventDefault();
+                window.doneEventTarget = event.target.className;
+                if (options.buttonLockMs && !onPressDelay()) {events.push(['REJECTED DONE']); return;}
+                if (getComputedStyle(document.querySelector('.trDone')).cursor !== 'pointer') return;
+                finishCall(event);
+            });
+        } else if (options.directDoneHandler) {
             doneRoot.addEventListener(options.doneClickOnly ? 'click' : 'mousedown',finishCall);
         } else {
             document.querySelector('td[data-info="DONE"]').onmousedown = finishCall;
         }
         if (options.manualCall) beginCall('9999');
     }, options);
+    await page.addScriptTag({path: path.resolve(__dirname, '../page-state.js')});
     await page.addScriptTag({path: path.resolve(__dirname, '../content.js')});
     return page;
 }
@@ -112,6 +151,15 @@ test('ignores Issue Time and nested rows; leaves short and invalid waits alone',
     const p = await fixture(t, {rows:[['3118','00:14:59'], ['3119','00:00:10'], ['3120','9:53:11 AM'], ['3121','00:99:00']]});
     await advance(p, 10000);
     assert.deepEqual(await events(p), []);
+});
+
+test('dashboard reports the running content-script build without changing automation', async t => {
+    const p = await fixture(t,{rows:[['3118','00:01:00']]});
+    const response = await p.evaluate(() => new Promise(resolve => {
+        extensionMessageListener({type:'queuebee:build'}, {}, resolve);
+    }));
+    assert.deepEqual(response,{build:'DONE-2'});
+    assert.deepEqual(await events(p),[]);
 });
 
 test('threshold boundary, HH:MM:SS and MM:SS; counts each completed transaction once', async t => {
@@ -173,6 +221,81 @@ test('Done waits for a briefly blank patient label instead of aborting during re
     assert.deepEqual(await events(p), [['Silent Call','3118'],['DONE','3118']]);
     assert.equal(await p.evaluate(() => state.clearedCount), 1);
 });
+
+test('Done targets the outer buttonDone action with the captured direct click handler', async t => {
+    const p = await fixture(t,{outerDoneWrapper:true});
+    await advance(p);
+    assert.deepEqual(await events(p),[['Silent Call','3118'],['DONE','3118']]);
+    assert.equal(await p.evaluate(()=>window.doneEventTarget),'pointer buttonCall buttonDone');
+    assert.equal(await p.evaluate(()=>state.clearedCount),1);
+});
+
+test('Done waits past the captured 200 ms button lock and completes successive queues', async t => {
+    const p = await fixture(t,{outerDoneWrapper:true,buttonLockMs:200,rows:[['3118','00:15:00'],['3119','00:16:00']]});
+    await advance(p,100);
+    assert.deepEqual(await events(p),[['Silent Call','3118']]);
+    await advance(p,5000);
+    assert.deepEqual(await events(p),[['Silent Call','3118'],['DONE','3118'],['Silent Call','3119'],['DONE','3119']]);
+    assert.equal(await p.evaluate(()=>state.clearedCount),2);
+});
+
+test('Done waits for the actual trDone cursor readiness condition', async t => {
+    const p = await fixture(t,{outerDoneWrapper:true,doneCursorDelay:1000});
+    await advance(p,500);
+    assert.deepEqual(await events(p),[['Silent Call','3118']]);
+    await advance(p,2500);
+    assert.deepEqual(await events(p),[['Silent Call','3118'],['DONE','3118']]);
+});
+
+test('STOP during the button lock prevents Done', async t => {
+    const p = await fixture(t,{outerDoneWrapper:true,buttonLockMs:2000});
+    await advance(p,500);
+    await p.evaluate(()=>chrome.storage.local.set({isRunning:false}));
+    await advance(p,4000);
+    assert.deepEqual(await events(p),[['Silent Call','3118']]);
+    assert.equal(await p.evaluate(()=>state.clearedCount || 0),0);
+});
+
+test('a patient changed while Done is locked is never completed', async t => {
+    const p = await fixture(t,{outerDoneWrapper:true,buttonLockMs:2000});
+    await advance(p,500);
+    await p.evaluate(()=>{document.querySelector('#lblqueueno').textContent='9999';});
+    await advance(p,3000);
+    assert.deepEqual(await events(p),[['Silent Call','3118']]);
+    assert.match(await p.evaluate(()=>state.automationMessage),/Patient number changed/);
+});
+
+test('reading the lock preserves its timestamp and rejects the exact 200 ms boundary', async t => {
+    const p = await fixture(t,{rows:[['3118','00:01:00']]});
+    const result = await p.evaluate(() => {
+        window.theButtonLockTime = 200;
+        window.dtLastBtnLock = Date.now() - 200;
+        const before = dtLastBtnLock;
+        document.dispatchEvent(new Event('queuebee:read-button-lock'));
+        const remaining = Number(document.documentElement.getAttribute('data-queuebee-button-lock'));
+        return {remaining, unchanged:dtLastBtnLock === before};
+    });
+    assert.deepEqual(result,{remaining:1,unchanged:true});
+});
+
+for (const [num, timer] of [['3321','00:02:27'], ['3342','00:00:00']]) {
+    test(`Done handles the supplied dashboard markup for queue ${num}, timer ${timer}`, async t => {
+        const p = await fixture(t, {
+            rows:[[num,'00:15:00'],['3999','00:14:59']],
+            outerDoneWrapper:true,
+            buttonLockMs:200,
+            liveSnapshot:{
+                queue:`<span id="lblqueueno" class="focusInput" data-status="0" data-size="35px" style="">${num}</span>`,
+                call:`<span data-info="CALL" class="divCall"><div style="">${timer} </div></span>`,
+                done:'<td data-info="DONE"><div data-info="DONE" class="roundImg" style="background-image:url(icons/done.png);"></div><div data-info="DONE" class="btnMainCall"><span data-info="DONE" class="divDone">DONE</span></div></td>'
+            }
+        });
+        await advance(p);
+        assert.deepEqual(await events(p), [['Silent Call',num],['DONE',num]]);
+        assert.equal(await p.evaluate(() => state.clearedCount),1);
+        assert.deepEqual(await p.evaluate(() => state.activityLogs.map(log => log.num)),[num]);
+    });
+}
 
 for (const options of [{wrongDialog:true}, {dialogPatient:'9999'}]) {
     test(`does not confirm an unrelated dialog: ${JSON.stringify(options)}`, async t => {

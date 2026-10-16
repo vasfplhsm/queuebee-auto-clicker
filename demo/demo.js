@@ -13,6 +13,15 @@
     let finishing = false;
     let normalCalls = 0;
     let startedAt = 0;
+    // Match the live QB10 guard captured from the user's dashboard.
+    window.theButtonLockTime = 200;
+    window.dtLastBtnLock = 0;
+    function onPressDelay() {
+        const now = Date.now();
+        if (Math.abs(now - window.dtLastBtnLock) <= window.theButtonLockTime) return false;
+        window.dtLastBtnLock = now;
+        return true;
+    }
     const format = seconds => [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60].map(n => String(n).padStart(2, '0')).join(':');
 
     function log(message) {
@@ -30,6 +39,7 @@
         byId('patientState').textContent = attending ? 'ATTENDING' : 'NEXT';
         byId('manualCall').disabled = attending;
         byId('manualDone').disabled = !attending;
+        document.querySelector('.trDone').style.cursor = attending ? 'pointer' : 'default';
         document.querySelectorAll('.row-action').forEach(button => {button.disabled = attending;});
     }
     function begin(num, type) {
@@ -41,6 +51,7 @@
     }
     function request(num, type) {
         if (active || document.querySelector('.OuterPopMsg')) return;
+        if (!onPressDelay()) return;
         log(`${type} requested for queue ${num}.`);
         if (type === 'CALL') {
             byId('normalCalls').textContent = String(++normalCalls);
@@ -55,6 +66,7 @@
         // A short simulated response gives the dialog time to be seen on screen.
         setTimeout(() => {yes.disabled = false;}, 1000);
         yes.onclick = () => {
+            if (!onPressDelay()) return;
             overlay.remove();
             log(`Silent Call confirmed for queue ${num}.`);
             setTimeout(() => begin(num, type), 600);
@@ -63,10 +75,11 @@
     }
 
     window.onMonCall = el => request(el.dataset.queue, el.dataset.info);
-    byId('manualDone').addEventListener('mousedown', event => {
-        // Match controls whose handlers expect the button, not its text label,
-        // and a genuinely pressed primary button in the mouse-down event.
-        if (event.target !== byId('manualDone') || event.buttons !== 1) return;
+    byId('manualDone').addEventListener('click', event => {
+        event.stopPropagation();
+        event.preventDefault();
+        if (!onPressDelay()) return;
+        if (getComputedStyle(document.querySelector('.trDone')).cursor !== 'pointer') return;
         if (!active || finishing || byId('manualDone').disabled) return;
         finishing = true;
         log(`Done requested for queue ${active}.`);
@@ -80,11 +93,6 @@
             current(document.querySelector('.monqueueinfo [data-queue]')?.dataset.queue || '-END-', false);
             log(`Queue ${finished} completed and removed from the waiting list.`);
         }, mode === 'slow' ? 8000 : 1200);
-    });
-    // Manual controls use the same UI events as the hospital-shaped fixture.
-    byId('manualDone').addEventListener('click', event => {
-        if (event.target !== byId('manualDone') || event.detail !== 0) return;
-        byId('manualDone').dispatchEvent(new MouseEvent('mousedown', {bubbles:true, button:0, buttons:1}));
     });
     byId('manualCall').onclick = () => {
         const next = document.querySelector('.monqueueinfo [data-queue]');

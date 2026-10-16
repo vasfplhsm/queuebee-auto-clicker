@@ -12,19 +12,36 @@ Internal Chrome extension to automate patient waiting list management and mainta
 
 ## 🛠 Installation
 
-Download the [hospital extension v1.0 with the Done fix](downloads/queuebee-extension-v1.0-done-fix.zip),
-extract it, and load its `queuebee-extension-v1.0` folder using the steps below.
+Download the [hospital extension v1.0, build DONE-2](downloads/queuebee-extension-v1.0-DONE-2.zip),
+extract it, and load its `queuebee-extension-v1.0-DONE-2` folder using the steps below.
 This package runs on the hospital IP and contains no demo dashboard.
 
 1.  Open **Google Chrome** and go to `chrome://extensions/`.
 2.  Turn on **Developer mode** (top right).
 3.  Click **Load unpacked**.
-4.  Select this `queuebee-auto-clicker` folder.
+4.  Select the extracted folder containing `manifest.json`.
 
 ### Updating to v1.0
 
-The Done completion update targets the action wrapper around the DONE label and
-sends the pressed primary-button state. It also ignores fully transparent old
+Build **DONE-2** waits for QueueBee's own button lock to expire before Done,
+targets the outer `.buttonDone` action, and checks the `.trDone` cursor used
+by `_MultiButtonDone`. The supplied QB10 5.164 handler rejects presses within
+200 ms of the last action, even when Done already appears red. A read-only
+page script reports that lock to the automation without calling or changing
+QueueBee's lock function. The regression test reproduces the ignored click in
+the previous build and completes successive queues with this fix.
+
+This build also adds a live dashboard build check. The popup must display
+**Build DONE-2 · Dashboard connected (DONE-2)** before START is enabled.
+If the tab still contains an older script, the popup requests a dashboard
+refresh. STOP remains available. Chrome's extension version stays at 1.0.
+
+For a clean update: STOP, remove older QueueBee extension copies, install the
+new extracted folder, and close and reopen the QueueBee dashboard tab. Opening
+the popup on that tab should show the matching DONE-2 build. Reloading an
+extension does not replace content scripts already running in an open page.
+
+The Done completion update also ignores fully transparent old
 dialogs and waits through a briefly blank patient label during redraw. A
 different patient number still stops automation. The popup reports whether it is
 waiting for the active timer, the DONE control, or the refreshed waiting list.
@@ -65,7 +82,7 @@ popup. Reset demo stops automation and clears test extension storage. Use one
 test dashboard tab at a time.
 
 This build uses native content-script injection and Chrome extension storage.
-Its `content.js` and `popup.js` are identical to the hospital build. Only the
+Its `page-state.js`, `content.js`, and `popup.js` are identical to the hospital build. Only the
 patients and server responses are simulated. Its manifest matches the local
 `queuebee-test.html` file and grants no hospital-site access. The production
 manifest remains restricted to `10.138.119.134`. Build it again with

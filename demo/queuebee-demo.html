@@ -40,7 +40,7 @@
           <div><p class="eyebrow" id="patientState">NEXT</p><strong id="lblqueueno" data-status="0">—</strong></div>
           <table class="patient-controls"><tr>
             <td data-info="CALL"><button id="manualCall" class="secondary btnMainCall"><span class="divCall" data-info="CALL">CALL</span></button></td>
-            <td data-info="DONE"><button id="manualDone" data-info="DONE" class="secondary btnMainCall" disabled><span class="divDone" data-info="DONE" style="pointer-events:none">DONE</span></button></td>
+            <td data-info="DONE" class="trDone"><button id="manualDone" data-info="DONE" class="secondary pointer buttonCall buttonDone" disabled><span class="roundImg" data-info="DONE" style="pointer-events:none"></span><span class="btnMainCall" data-info="DONE" style="pointer-events:none"><span class="divDone" data-info="DONE">DONE</span></span></button></td>
           </tr></table>
         </div>
       </section>
@@ -103,6 +103,15 @@
     let finishing = false;
     let normalCalls = 0;
     let startedAt = 0;
+    // Match the live QB10 guard captured from the user's dashboard.
+    window.theButtonLockTime = 200;
+    window.dtLastBtnLock = 0;
+    function onPressDelay() {
+        const now = Date.now();
+        if (Math.abs(now - window.dtLastBtnLock) <= window.theButtonLockTime) return false;
+        window.dtLastBtnLock = now;
+        return true;
+    }
     const format = seconds => [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60].map(n => String(n).padStart(2, '0')).join(':');
 
     function log(message) {
@@ -120,6 +129,7 @@
         byId('patientState').textContent = attending ? 'ATTENDING' : 'NEXT';
         byId('manualCall').disabled = attending;
         byId('manualDone').disabled = !attending;
+        document.querySelector('.trDone').style.cursor = attending ? 'pointer' : 'default';
         document.querySelectorAll('.row-action').forEach(button => {button.disabled = attending;});
     }
     function begin(num, type) {
@@ -131,6 +141,7 @@
     }
     function request(num, type) {
         if (active || document.querySelector('.OuterPopMsg')) return;
+        if (!onPressDelay()) return;
         log(`${type} requested for queue ${num}.`);
         if (type === 'CALL') {
             byId('normalCalls').textContent = String(++normalCalls);
@@ -145,6 +156,7 @@
         // A short simulated response gives the dialog time to be seen on screen.
         setTimeout(() => {yes.disabled = false;}, 1000);
         yes.onclick = () => {
+            if (!onPressDelay()) return;
             overlay.remove();
             log(`Silent Call confirmed for queue ${num}.`);
             setTimeout(() => begin(num, type), 600);
@@ -153,10 +165,11 @@
     }
 
     window.onMonCall = el => request(el.dataset.queue, el.dataset.info);
-    byId('manualDone').addEventListener('mousedown', event => {
-        // Match controls whose handlers expect the button, not its text label,
-        // and a genuinely pressed primary button in the mouse-down event.
-        if (event.target !== byId('manualDone') || event.buttons !== 1) return;
+    byId('manualDone').addEventListener('click', event => {
+        event.stopPropagation();
+        event.preventDefault();
+        if (!onPressDelay()) return;
+        if (getComputedStyle(document.querySelector('.trDone')).cursor !== 'pointer') return;
         if (!active || finishing || byId('manualDone').disabled) return;
         finishing = true;
         log(`Done requested for queue ${active}.`);
@@ -170,11 +183,6 @@
             current(document.querySelector('.monqueueinfo [data-queue]')?.dataset.queue || '-END-', false);
             log(`Queue ${finished} completed and removed from the waiting list.`);
         }, mode === 'slow' ? 8000 : 1200);
-    });
-    // Manual controls use the same UI events as the hospital-shaped fixture.
-    byId('manualDone').addEventListener('click', event => {
-        if (event.target !== byId('manualDone') || event.detail !== 0) return;
-        byId('manualDone').dispatchEvent(new MouseEvent('mousedown', {bubbles:true, button:0, buttons:1}));
     });
     byId('manualCall').onclick = () => {
         const next = document.querySelector('.monqueueinfo [data-queue]');
@@ -213,9 +221,37 @@
 </script>
   <script>
 (() => {
+    // Runs in the page's MAIN world. Read QueueBee's lock without calling
+    // onPressDelay(), which would itself acquire the lock. No actions run here.
+    if (globalThis.queueBeeButtonLockReaderLoaded) return;
+    globalThis.queueBeeButtonLockReaderLoaded = true;
+    document.addEventListener('queuebee:read-button-lock', () => {
+        let remaining = 0;
+        try {
+            const limit = Number(theButtonLockTime);
+            const elapsed = Math.abs(Date.now() - Number(dtLastBtnLock));
+            if (Number.isFinite(limit) && Number.isFinite(elapsed)) {
+                // QueueBee rejects elapsed <= limit, including the boundary.
+                remaining = Math.max(0, limit - elapsed + 1);
+            }
+        } catch (_) { /* QueueBee's own guard also permits unset globals. */ }
+        document.documentElement.setAttribute('data-queuebee-button-lock', String(remaining));
+    });
+})();
+
+</script>
+  <script>
+(() => {
     // Reinjection must never start a second loop in this tab.
     if (globalThis.queueBeeAutomationLoaded) return;
     globalThis.queueBeeAutomationLoaded = true;
+
+    const QUEUEBEE_BUILD = 'DONE-2';
+    chrome.runtime.onMessage?.addListener((message, sender, reply) => {
+        if (message?.type === 'queuebee:build') reply({build:QUEUEBEE_BUILD});
+        return false;
+    });
+    console.info(`QueueBee build ${QUEUEBEE_BUILD} loaded`);
 
     const ding = new Audio("data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YV9vT18AZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAD///8BAP//AgD//wMA//8EAP//BQD//wYA//8HAP//CAD//wkA//8KAP//CwD//wwA//8NAP//DgD//w8A//8QAP//EQD//xIA//8TAP//FAD//xUA//8WAP//FwD//xgA//8ZAP//GgD//xsA//8cAP//HQD//x4A//8fAP//IAD//yEA//8iAP//IwD//yQA//8lAP//JgD//ycA//8oAP//KQD//yoA//8rAP//LAD//y0A//8uAP//LwD//zAA//8xAP//MgD//zMA//80AP//NQD//zYA//83AP//OAD//zkA//86AP//OwD//zwA//89AP//PgD//z8A");
     const STEP_TIMEOUT_MS = 30000;
@@ -303,15 +339,32 @@
         return Array.from(document.querySelectorAll('.monqueueinfo [data-queue][data-tranid]')).some(el =>
             el.getAttribute('data-queue') === candidate.num && el.getAttribute('data-tranid') === candidate.transaction);
     }
+    function buttonLockRemaining() {
+        // MAIN and isolated content scripts share the DOM, not page globals.
+        // A synchronous read also notices manual actions during our wait.
+        const root = document.documentElement;
+        root.removeAttribute('data-queuebee-button-lock');
+        document.dispatchEvent(new Event('queuebee:read-button-lock'));
+        const value = root.getAttribute('data-queuebee-button-lock');
+        root.removeAttribute('data-queuebee-button-lock');
+        return value !== null && Number.isFinite(Number(value)) ? Number(value) : null;
+    }
     function doneControl() {
         const labels = Array.from(document.querySelectorAll('span.divDone[data-info="DONE"]')).filter(visible);
         if (labels.length !== 1 || labels[0].closest('[disabled], [aria-disabled="true"], .disabled')) return null;
-        // The label can have pointer-events:none. The actual control is its
-        // .btnMainCall/button/TD wrapper; delegated handlers may require that target.
+        // Live QB10 binds click on .buttonDone, outside the caption and TD.
+        // _MultiButtonDone also requires the first .trDone cursor to be pointer.
+        const action = labels[0].closest('.buttonDone');
+        const gate = document.querySelector('.trDone');
+        if (action && (!gate || getComputedStyle(gate).cursor !== 'pointer')) return null;
         for (let control = labels[0]; control && control !== document.body; control = control.parentElement) {
             const info = control.getAttribute('data-info');
             if (info && info !== 'DONE') return null;
             if (control.querySelector('[data-info="CALL"], [data-info="Silent Call"]')) return null;
+            if (action) {
+                if (control === action) return enabled(control) ? control : null;
+                continue;
+            }
             if (control.matches('button, a, [role="button"], [onmousedown], [onclick], .button, .btnMainCall, td[data-info="DONE"]') &&
                 enabled(control)) return control;
         }
@@ -354,7 +407,7 @@
             el.dispatchEvent(new MouseEvent('mousedown', {...mouse, buttons:1}));
         } else {
             // Main controls can use delegated mouse handlers as well as click.
-            // Send one mouse gesture to the exact label; never retry the action.
+            // Send one mouse gesture to the exact action; never retry it.
             el.dispatchEvent(new MouseEvent('mousedown', {...mouse, buttons:1}));
             if (!enabled(el)) return;
             el.dispatchEvent(new MouseEvent('mouseup', {...mouse, buttons:0}));
@@ -389,6 +442,9 @@
     async function processOne(run, threshold) {
         // A timer identifies an active call, including a manually started call.
         if (callTimer() !== null || dialogs().length) return;
+        const lock = buttonLockRemaining();
+        if (lock === null) throw new Error('QueueBee button-lock reader is unavailable. Reload the extension and dashboard.');
+        if (lock > 0) return;
         const candidate = waitingRows().find(item => item.seconds >= threshold * 60 && !completed.has(item.key));
         if (!candidate) return;
         let started = false;
@@ -417,16 +473,18 @@
                 // redraws. Wait for it; never click Done without a matching number.
                 if (!selected || selected === '-END-') return false;
                 if (selected !== candidate.num) throw new Error('Patient number changed.');
-                return !dialogs().length && doneControl();
+                return !dialogs().length && doneControl() && buttonLockRemaining() === 0;
             }, () => callTimer() === null ? 'the active CALL timer' : dialogs().length
                 ? 'the confirmation dialog to close' : selectedQueue() !== candidate.num
-                    ? `queue ${candidate.num} to appear in the patient panel` : 'the enabled DONE control');
+                    ? `queue ${candidate.num} to appear in the patient panel` : !doneControl()
+                        ? 'the enabled DONE control' : buttonLockRemaining() === null
+                            ? 'the QueueBee button-lock reader' : 'the QueueBee button lock to expire');
             await check(run);
             if (selectedQueue() !== candidate.num || callTimer() === null || dialogs().length) {
                 throw new Error('Patient state changed before Done.');
             }
             const done = doneControl();
-            if (!done) throw new Error('The exact DONE control is unavailable.');
+            if (!done || buttonLockRemaining() !== 0) throw new Error('The exact DONE control is unavailable or locked.');
             activate(done);
             await set({automationMessage:`DONE requested: ${candidate.num}; waiting for completion`});
             // A click alone is not completion: require both the timer to end and
@@ -453,7 +511,7 @@
             }
         } catch (error) {
             if (!(error instanceof Cancelled)) {
-                console.warn('QueueBee stopped:', error.message);
+                console.warn(`QueueBee [${QUEUEBEE_BUILD}] stopped:`, error.message);
                 const config = await get(['isRunning']);
                 if (config.isRunning) await set({isRunning: false, automationMessage: `Stopped: ${error.message}`});
             }
@@ -468,7 +526,41 @@
 
 </script>
   <script>
+const QUEUEBEE_BUILD = 'DONE-2';
+
+function checkDashboard() {
+  // The standalone HTML simulation has no native extension ID. An installed
+  // extension must always verify the active tab's actual content script.
+  if (!chrome.runtime.id) return Promise.resolve({ready:true, message:`Build ${QUEUEBEE_BUILD} · Standalone simulation`});
+  return new Promise(resolve => {
+    chrome.tabs.query({active:true, currentWindow:true}, tabs => {
+      const tabId = tabs?.[0]?.id;
+      if (chrome.runtime.lastError || !Number.isInteger(tabId) || tabId < 0) {
+        resolve({ready:false, message:`Build ${QUEUEBEE_BUILD} · Open the QueueBee dashboard tab.`});
+        return;
+      }
+      chrome.tabs.sendMessage(tabId, {type:'queuebee:build'}, response => {
+        const error = chrome.runtime.lastError;
+        if (error || !response?.build) {
+          resolve({ready:false, message:`Build ${QUEUEBEE_BUILD} · Open or refresh the QueueBee dashboard tab to load this build.`});
+        } else if (response.build !== QUEUEBEE_BUILD) {
+          resolve({ready:false, message:`Extension ${QUEUEBEE_BUILD} · Page ${response.build}. Refresh the dashboard tab.`});
+        } else {
+          resolve({ready:true, message:`Build ${QUEUEBEE_BUILD} · Dashboard connected (${QUEUEBEE_BUILD})`});
+        }
+      });
+    });
+  });
+}
+
+function showDashboardCheck(result) {
+  const status = document.getElementById('buildStatus');
+  if (status) status.textContent = result.message;
+  document.getElementById('startBtn').disabled = !result.ready;
+}
+
 function updateUI() {
+  checkDashboard().then(showDashboardCheck);
   chrome.storage.local.get(['waitLimit', 'isRunning', 'clearedCount', 'activityLogs', 'automationMessage'], (res) => {
     // FIX: Set the dropdown value to what is in storage
     if (res.waitLimit) {
@@ -496,7 +588,11 @@ function updateUI() {
   });
 }
 
-document.getElementById('startBtn').addEventListener('click', () => {
+document.getElementById('startBtn').addEventListener('click', async () => {
+  // Recheck on every START, even if the popup previously showed a matching tab.
+  const dashboard = await checkDashboard();
+  showDashboardCheck(dashboard);
+  if (!dashboard.ready) return;
   const limit = document.getElementById('timeLimit').value;
   // Save the limit immediately when Start is clicked
   chrome.storage.local.set({ waitLimit: limit, isRunning: true, automationMessage: '' }, updateUI);

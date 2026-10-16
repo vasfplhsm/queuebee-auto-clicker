@@ -3,6 +3,13 @@
     if (globalThis.queueBeeAutomationLoaded) return;
     globalThis.queueBeeAutomationLoaded = true;
 
+    const QUEUEBEE_BUILD = 'DONE-2';
+    chrome.runtime.onMessage?.addListener((message, sender, reply) => {
+        if (message?.type === 'queuebee:build') reply({build:QUEUEBEE_BUILD});
+        return false;
+    });
+    console.info(`QueueBee build ${QUEUEBEE_BUILD} loaded`);
+
     const ding = new Audio("data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YV9vT18AZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAD///8BAP//AgD//wMA//8EAP//BQD//wYA//8HAP//CAD//wkA//8KAP//CwD//wwA//8NAP//DgD//w8A//8QAP//EQD//xIA//8TAP//FAD//xUA//8WAP//FwD//xgA//8ZAP//GgD//xsA//8cAP//HQD//x4A//8fAP//IAD//yEA//8iAP//IwD//yQA//8lAP//JgD//ycA//8oAP//KQD//yoA//8rAP//LAD//y0A//8uAP//LwD//zAA//8xAP//MgD//zMA//80AP//NQD//zYA//83AP//OAD//zkA//86AP//OwD//zwA//89AP//PgD//z8A");
     const STEP_TIMEOUT_MS = 30000;
     let revision = 0;
@@ -89,15 +96,32 @@
         return Array.from(document.querySelectorAll('.monqueueinfo [data-queue][data-tranid]')).some(el =>
             el.getAttribute('data-queue') === candidate.num && el.getAttribute('data-tranid') === candidate.transaction);
     }
+    function buttonLockRemaining() {
+        // MAIN and isolated content scripts share the DOM, not page globals.
+        // A synchronous read also notices manual actions during our wait.
+        const root = document.documentElement;
+        root.removeAttribute('data-queuebee-button-lock');
+        document.dispatchEvent(new Event('queuebee:read-button-lock'));
+        const value = root.getAttribute('data-queuebee-button-lock');
+        root.removeAttribute('data-queuebee-button-lock');
+        return value !== null && Number.isFinite(Number(value)) ? Number(value) : null;
+    }
     function doneControl() {
         const labels = Array.from(document.querySelectorAll('span.divDone[data-info="DONE"]')).filter(visible);
         if (labels.length !== 1 || labels[0].closest('[disabled], [aria-disabled="true"], .disabled')) return null;
-        // The label can have pointer-events:none. The actual control is its
-        // .btnMainCall/button/TD wrapper; delegated handlers may require that target.
+        // Live QB10 binds click on .buttonDone, outside the caption and TD.
+        // _MultiButtonDone also requires the first .trDone cursor to be pointer.
+        const action = labels[0].closest('.buttonDone');
+        const gate = document.querySelector('.trDone');
+        if (action && (!gate || getComputedStyle(gate).cursor !== 'pointer')) return null;
         for (let control = labels[0]; control && control !== document.body; control = control.parentElement) {
             const info = control.getAttribute('data-info');
             if (info && info !== 'DONE') return null;
             if (control.querySelector('[data-info="CALL"], [data-info="Silent Call"]')) return null;
+            if (action) {
+                if (control === action) return enabled(control) ? control : null;
+                continue;
+            }
             if (control.matches('button, a, [role="button"], [onmousedown], [onclick], .button, .btnMainCall, td[data-info="DONE"]') &&
                 enabled(control)) return control;
         }
@@ -140,7 +164,7 @@
             el.dispatchEvent(new MouseEvent('mousedown', {...mouse, buttons:1}));
         } else {
             // Main controls can use delegated mouse handlers as well as click.
-            // Send one mouse gesture to the exact label; never retry the action.
+            // Send one mouse gesture to the exact action; never retry it.
             el.dispatchEvent(new MouseEvent('mousedown', {...mouse, buttons:1}));
             if (!enabled(el)) return;
             el.dispatchEvent(new MouseEvent('mouseup', {...mouse, buttons:0}));
@@ -175,6 +199,9 @@
     async function processOne(run, threshold) {
         // A timer identifies an active call, including a manually started call.
         if (callTimer() !== null || dialogs().length) return;
+        const lock = buttonLockRemaining();
+        if (lock === null) throw new Error('QueueBee button-lock reader is unavailable. Reload the extension and dashboard.');
+        if (lock > 0) return;
         const candidate = waitingRows().find(item => item.seconds >= threshold * 60 && !completed.has(item.key));
         if (!candidate) return;
         let started = false;
@@ -203,16 +230,18 @@
                 // redraws. Wait for it; never click Done without a matching number.
                 if (!selected || selected === '-END-') return false;
                 if (selected !== candidate.num) throw new Error('Patient number changed.');
-                return !dialogs().length && doneControl();
+                return !dialogs().length && doneControl() && buttonLockRemaining() === 0;
             }, () => callTimer() === null ? 'the active CALL timer' : dialogs().length
                 ? 'the confirmation dialog to close' : selectedQueue() !== candidate.num
-                    ? `queue ${candidate.num} to appear in the patient panel` : 'the enabled DONE control');
+                    ? `queue ${candidate.num} to appear in the patient panel` : !doneControl()
+                        ? 'the enabled DONE control' : buttonLockRemaining() === null
+                            ? 'the QueueBee button-lock reader' : 'the QueueBee button lock to expire');
             await check(run);
             if (selectedQueue() !== candidate.num || callTimer() === null || dialogs().length) {
                 throw new Error('Patient state changed before Done.');
             }
             const done = doneControl();
-            if (!done) throw new Error('The exact DONE control is unavailable.');
+            if (!done || buttonLockRemaining() !== 0) throw new Error('The exact DONE control is unavailable or locked.');
             activate(done);
             await set({automationMessage:`DONE requested: ${candidate.num}; waiting for completion`});
             // A click alone is not completion: require both the timer to end and
@@ -239,7 +268,7 @@
             }
         } catch (error) {
             if (!(error instanceof Cancelled)) {
-                console.warn('QueueBee stopped:', error.message);
+                console.warn(`QueueBee [${QUEUEBEE_BUILD}] stopped:`, error.message);
                 const config = await get(['isRunning']);
                 if (config.isRunning) await set({isRunning: false, automationMessage: `Stopped: ${error.message}`});
             }

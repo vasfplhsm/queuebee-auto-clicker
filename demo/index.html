@@ -39,7 +39,7 @@
           <div><p class="eyebrow" id="patientState">NEXT</p><strong id="lblqueueno" data-status="0">—</strong></div>
           <table class="patient-controls"><tr>
             <td data-info="CALL"><button id="manualCall" class="secondary btnMainCall"><span class="divCall" data-info="CALL">CALL</span></button></td>
-            <td data-info="DONE"><button id="manualDone" data-info="DONE" class="secondary btnMainCall" disabled><span class="divDone" data-info="DONE" style="pointer-events:none">DONE</span></button></td>
+            <td data-info="DONE" class="trDone"><button id="manualDone" data-info="DONE" class="secondary pointer buttonCall buttonDone" disabled><span class="roundImg" data-info="DONE" style="pointer-events:none"></span><span class="btnMainCall" data-info="DONE" style="pointer-events:none"><span class="divDone" data-info="DONE">DONE</span></span></button></td>
           </tr></table>
         </div>
       </section>
@@ -65,6 +65,7 @@
   </main>
   <script src="storage-mock.js"></script>
   <script src="demo.js"></script>
+  <script src="../page-state.js"></script>
   <script src="../content.js"></script>
   <script src="../popup.js"></script>
 </body>
