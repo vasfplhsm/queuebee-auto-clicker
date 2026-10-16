@@ -12,7 +12,7 @@ Internal Chrome extension to automate patient waiting list management and mainta
 
 ## 🛠 Installation
 
-Download the [hospital extension v1.0 ZIP](downloads/queuebee-extension-v1.0.zip),
+Download the [hospital extension v1.0 with the Done fix](downloads/queuebee-extension-v1.0-done-fix.zip),
 extract it, and load its `queuebee-extension-v1.0` folder using the steps below.
 This package runs on the hospital IP and contains no demo dashboard.
 
@@ -22,6 +22,13 @@ This package runs on the hospital IP and contains no demo dashboard.
 4.  Select this `queuebee-auto-clicker` folder.
 
 ### Updating to v1.0
+
+The Done completion update targets the action wrapper around the DONE label and
+sends the pressed primary-button state. It also ignores fully transparent old
+dialogs and waits through a briefly blank patient label during redraw. A
+different patient number still stops automation. The popup reports whether it is
+waiting for the active timer, the DONE control, or the refreshed waiting list.
+The version remains 1.0; download a fresh ZIP and reload it to apply this update.
 
 Click **STOP** before updating. At `chrome://extensions/`, reload this extension,
 then **refresh every open QueueBee dashboard tab** to remove the old timers.

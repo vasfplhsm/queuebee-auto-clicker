@@ -63,7 +63,10 @@
     }
 
     window.onMonCall = el => request(el.dataset.queue, el.dataset.info);
-    document.querySelector('td[data-info="DONE"]').addEventListener('mousedown', () => {
+    byId('manualDone').addEventListener('mousedown', event => {
+        // Match controls whose handlers expect the button, not its text label,
+        // and a genuinely pressed primary button in the mouse-down event.
+        if (event.target !== byId('manualDone') || event.buttons !== 1) return;
         if (!active || finishing || byId('manualDone').disabled) return;
         finishing = true;
         log(`Done requested for queue ${active}.`);
@@ -79,8 +82,9 @@
         }, mode === 'slow' ? 8000 : 1200);
     });
     // Manual controls use the same UI events as the hospital-shaped fixture.
-    byId('manualDone').addEventListener('click', () => {
-        byId('manualDone').dispatchEvent(new MouseEvent('mousedown', {bubbles:true, button:0}));
+    byId('manualDone').addEventListener('click', event => {
+        if (event.target !== byId('manualDone') || event.detail !== 0) return;
+        byId('manualDone').dispatchEvent(new MouseEvent('mousedown', {bubbles:true, button:0, buttons:1}));
     });
     byId('manualCall').onclick = () => {
         const next = document.querySelector('.monqueueinfo [data-queue]');

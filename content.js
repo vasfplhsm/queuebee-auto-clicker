@@ -23,9 +23,14 @@
     class Cancelled extends Error {}
 
     function visible(el) {
-        return !!el?.isConnected && !el.closest('#maincmsTooltips, [hidden], [aria-hidden="true"]') &&
-            Array.from(el.getClientRects()).some(rect => rect.width > 0 && rect.height > 0) &&
-            getComputedStyle(el).visibility !== 'hidden';
+        if (!el?.isConnected || el.closest('#maincmsTooltips, [hidden], [aria-hidden="true"]') ||
+            !Array.from(el.getClientRects()).some(rect => rect.width > 0 && rect.height > 0) ||
+            getComputedStyle(el).visibility !== 'visible') return false;
+        // A dismissed confirmation can remain mounted while fully transparent.
+        for (let parent = el; parent; parent = parent.parentElement) {
+            if (getComputedStyle(parent).opacity === '0') return false;
+        }
+        return true;
     }
     function enabled(el) {
         return visible(el) && !el.closest('[disabled], [aria-disabled="true"], .disabled') &&
@@ -85,8 +90,18 @@
             el.getAttribute('data-queue') === candidate.num && el.getAttribute('data-tranid') === candidate.transaction);
     }
     function doneControl() {
-        const labels = Array.from(document.querySelectorAll('span.divDone[data-info="DONE"]')).filter(enabled);
-        return labels.length === 1 ? labels[0] : null;
+        const labels = Array.from(document.querySelectorAll('span.divDone[data-info="DONE"]')).filter(visible);
+        if (labels.length !== 1 || labels[0].closest('[disabled], [aria-disabled="true"], .disabled')) return null;
+        // The label can have pointer-events:none. The actual control is its
+        // .btnMainCall/button/TD wrapper; delegated handlers may require that target.
+        for (let control = labels[0]; control && control !== document.body; control = control.parentElement) {
+            const info = control.getAttribute('data-info');
+            if (info && info !== 'DONE') return null;
+            if (control.querySelector('[data-info="CALL"], [data-info="Silent Call"]')) return null;
+            if (control.matches('button, a, [role="button"], [onmousedown], [onclick], .button, .btnMainCall, td[data-info="DONE"]') &&
+                enabled(control)) return control;
+        }
+        return null;
     }
     function dialogs() {
         return Array.from(document.querySelectorAll(
@@ -117,30 +132,34 @@
     function activate(el) {
         if (!enabled(el)) throw new Error('The intended control is no longer available.');
         // Captured row markup uses onmousedown="onMonCall(this)".
-        // Target the exact node, never coordinates or a neighbouring CALL icon.
-        const mouse = {bubbles: true, cancelable: true, view: window, button: 0};
+        // Select the exact DOM control, never a neighbouring CALL icon.
+        const rect = el.getBoundingClientRect();
+        const mouse = {bubbles:true, cancelable:true, view:window, button:0,
+            clientX:rect.left + rect.width / 2, clientY:rect.top + rect.height / 2};
         if (el.hasAttribute('onmousedown')) {
-            el.dispatchEvent(new MouseEvent('mousedown', mouse));
+            el.dispatchEvent(new MouseEvent('mousedown', {...mouse, buttons:1}));
         } else {
             // Main controls can use delegated mouse handlers as well as click.
             // Send one mouse gesture to the exact label; never retry the action.
-            el.dispatchEvent(new MouseEvent('mousedown', mouse));
+            el.dispatchEvent(new MouseEvent('mousedown', {...mouse, buttons:1}));
             if (!enabled(el)) return;
-            el.dispatchEvent(new MouseEvent('mouseup', mouse));
-            el.click();
+            el.dispatchEvent(new MouseEvent('mouseup', {...mouse, buttons:0}));
+            el.dispatchEvent(new MouseEvent('click', {...mouse, buttons:0}));
         }
     }
-    async function check(run, deadline) {
+    async function check(run, deadline, description = 'QueueBee') {
         const config = await get(['isRunning', 'waitLimit']);
         if (!config.isRunning || revision !== run.revision || Number(config.waitLimit ?? 25) !== run.threshold) {
             throw new Cancelled('Settings changed.');
         }
-        if (deadline && Date.now() >= deadline) throw new Error('Timed out waiting for QueueBee.');
+        if (deadline && Date.now() >= deadline) {
+            throw new Error(`Timed out waiting for ${typeof description === 'function' ? description() : description}.`);
+        }
     }
-    async function waitFor(run, predicate) {
+    async function waitFor(run, predicate, description) {
         const deadline = Date.now() + STEP_TIMEOUT_MS;
         while (true) {
-            await check(run, deadline);
+            await check(run, deadline, description);
             const value = predicate();
             if (value) return value;
             await sleep(250);
@@ -169,18 +188,25 @@
             activate(fresh.silent);
             started = true;
             // Support both immediate silent calls and YES/NO confirmations.
-            await waitFor(run, () => callTimer() !== null || silentConfirmation(candidate.num));
+            await waitFor(run, () => callTimer() !== null || silentConfirmation(candidate.num), 'Silent Call confirmation or the active CALL timer');
             const confirmation = silentConfirmation(candidate.num);
             if (confirmation) {
                 await check(run);
                 if (silentConfirmation(candidate.num)?.yes !== confirmation.yes) throw new Error('Confirmation changed.');
                 activate(confirmation.yes);
             }
+            await set({automationMessage:`Waiting for DONE: ${candidate.num}`});
             await waitFor(run, () => {
                 if (callTimer() === null) return false;
-                if (selectedQueue() !== candidate.num) throw new Error('Patient number changed.');
+                const selected = selectedQueue();
+                // The queue label can disappear briefly while the service panel
+                // redraws. Wait for it; never click Done without a matching number.
+                if (!selected || selected === '-END-') return false;
+                if (selected !== candidate.num) throw new Error('Patient number changed.');
                 return !dialogs().length && doneControl();
-            });
+            }, () => callTimer() === null ? 'the active CALL timer' : dialogs().length
+                ? 'the confirmation dialog to close' : selectedQueue() !== candidate.num
+                    ? `queue ${candidate.num} to appear in the patient panel` : 'the enabled DONE control');
             await check(run);
             if (selectedQueue() !== candidate.num || callTimer() === null || dialogs().length) {
                 throw new Error('Patient state changed before Done.');
@@ -188,10 +214,11 @@
             const done = doneControl();
             if (!done) throw new Error('The exact DONE control is unavailable.');
             activate(done);
+            await set({automationMessage:`DONE requested: ${candidate.num}; waiting for completion`});
             // A click alone is not completion: require both the timer to end and
             // this transaction to leave the waiting list before counting it.
             await waitFor(run, () => callTimer() === null && waitingListVisible() &&
-                !transactionPresent(candidate) && !dialogs().length);
+                !transactionPresent(candidate) && !dialogs().length, 'the waiting list to refresh after DONE');
             completed.add(candidate.key);
             await record(candidate);
             ding.play().catch(() => {});

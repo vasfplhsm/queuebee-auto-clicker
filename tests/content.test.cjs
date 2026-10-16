@@ -17,7 +17,7 @@ async function fixture(t, options = {}) {
     // exact data-info values, transaction IDs, and onmousedown handlers.
     await page.setContent(`<span id="lblqueueno" data-status="0">3118</span>
       <table id="controls"><tr><td data-info="CALL"><div class="btnMainCall"><span data-info="CALL" class="divCall">CALL</span></div></td>
-      <td data-info="DONE"><div class="btnMainCall"><span data-info="DONE" class="divDone">DONE</span></div></td></tr></table>
+      <td data-info="DONE"><div data-info="DONE" class="btnMainCall"><span data-info="DONE" class="divDone">DONE</span></div></td></tr></table>
       <div id="maincmsTooltips"><span class="divDone" data-info="DONE">DONE</span></div>
       <div class="OuterPopMsg"></div>
       <table id="tblmon1"><thead><tr><th>Queue No.</th><th>Service Name</th><th>Information</th><th>Issue Time</th><th>Wait Duration</th></tr></thead><tbody>
@@ -50,7 +50,18 @@ async function fixture(t, options = {}) {
         window.beginCall = num => {
             document.querySelector('.OuterPopMsg')?.remove();
             document.querySelector('#lblqueueno').textContent = options.wrongPatient || num;
+            if (options.patientLabelDelay) {
+                document.querySelector('#lblqueueno').textContent = '';
+                setTimeout(() => {document.querySelector('#lblqueueno').textContent = num;}, options.patientLabelDelay);
+            }
             document.querySelector('span.divCall').innerHTML = '<div>00:00:01</div>';
+            if (options.fadedOverlay) {
+                const overlay = document.createElement('div');
+                overlay.className = 'OuterPopMsg';
+                overlay.style.cssText = 'position:fixed;width:200px;height:100px;opacity:0;pointer-events:none';
+                overlay.textContent = 'Previous confirmation';
+                document.body.append(overlay);
+            }
         };
         window.onMonCall = el => {
             const num = el.dataset.queue;
@@ -64,7 +75,12 @@ async function fixture(t, options = {}) {
             box.querySelector('#yes').onclick = () => { events.push(['YES', num]); beginCall(num); };
             document.body.append(box);
         };
-        document.querySelector('td[data-info="DONE"]').onmousedown = () => {
+        const doneRoot = document.querySelector('.btnMainCall[data-info="DONE"]');
+        if (options.decorativeDoneLabel) document.querySelector('span.divDone').style.pointerEvents = 'none';
+        if (options.disabledDone) doneRoot.classList.add('disabled');
+        const finishCall = event => {
+            if (options.directDoneHandler && event.target !== doneRoot) return;
+            if (options.requirePressedMouse && event.buttons !== 1) return;
             events.push(['DONE', document.querySelector('#lblqueueno').textContent]);
             if (options.holdDone) return;
             const finish = () => {
@@ -79,6 +95,11 @@ async function fixture(t, options = {}) {
             };
             if (options.finishDelay) setTimeout(finish, options.finishDelay); else finish();
         };
+        if (options.directDoneHandler) {
+            doneRoot.addEventListener(options.doneClickOnly ? 'click' : 'mousedown',finishCall);
+        } else {
+            document.querySelector('td[data-info="DONE"]').onmousedown = finishCall;
+        }
         if (options.manualCall) beginCall('9999');
     }, options);
     await page.addScriptTag({path: path.resolve(__dirname, '../content.js')});
@@ -105,6 +126,51 @@ test('confirms only the exact Silent Call dialog for the intended patient', asyn
     const p = await fixture(t, {confirm:true});
     await advance(p);
     assert.deepEqual(await events(p), [['Silent Call','3118'],['YES','3118'],['DONE','3118']]);
+    assert.equal(await p.evaluate(() => state.clearedCount), 1);
+});
+
+test('Done uses its clickable wrapper when the label is decorative', async t => {
+    const p = await fixture(t, {decorativeDoneLabel:true,directDoneHandler:true});
+    await advance(p);
+    assert.deepEqual(await events(p), [['Silent Call','3118'],['DONE','3118']]);
+    assert.equal(await p.evaluate(() => state.clearedCount), 1);
+});
+
+test('Done receives a pressed left mouse button on its action wrapper', async t => {
+    const p = await fixture(t, {directDoneHandler:true,requirePressedMouse:true});
+    await advance(p);
+    assert.deepEqual(await events(p), [['Silent Call','3118'],['DONE','3118']]);
+    assert.equal(await p.evaluate(() => state.clearedCount), 1);
+});
+
+test('Done supports a direct click handler on its wrapper', async t => {
+    const p = await fixture(t, {directDoneHandler:true,doneClickOnly:true});
+    await advance(p);
+    assert.deepEqual(await events(p), [['Silent Call','3118'],['DONE','3118']]);
+    assert.equal(await p.evaluate(() => state.clearedCount), 1);
+});
+
+test('Done is not blocked by a fully faded previous confirmation', async t => {
+    const p = await fixture(t, {fadedOverlay:true});
+    await advance(p);
+    assert.deepEqual(await events(p), [['Silent Call','3118'],['DONE','3118']]);
+    assert.equal(await p.evaluate(() => state.clearedCount), 1);
+});
+
+test('Done remains untouched when its wrapper is disabled', async t => {
+    const p = await fixture(t, {disabledDone:true});
+    await advance(p, 35000);
+    assert.deepEqual(await events(p), [['Silent Call','3118']]);
+    assert.equal(await p.evaluate(() => state.clearedCount || 0), 0);
+    assert.match(await p.evaluate(() => state.automationMessage), /enabled DONE control/);
+});
+
+test('Done waits for a briefly blank patient label instead of aborting during redraw', async t => {
+    const p = await fixture(t, {patientLabelDelay:1000});
+    await advance(p, 500);
+    assert.deepEqual(await events(p), [['Silent Call','3118']]);
+    await advance(p, 2500);
+    assert.deepEqual(await events(p), [['Silent Call','3118'],['DONE','3118']]);
     assert.equal(await p.evaluate(() => state.clearedCount), 1);
 });
 
