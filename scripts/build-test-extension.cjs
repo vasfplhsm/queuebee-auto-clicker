@@ -56,10 +56,12 @@ fs.writeFileSync(path.join(output, 'READ-ME.txt'), `QUEUEBEE v1.0 — INSTALLED 
 
 Expected: queues 3001 and 3002 clear; 3003 (14:59) and 3004 (04:40) remain.
 Each active queue waits at least five seconds to load before Done is clicked.
+If Done is ignored, it is retried every five seconds without an automatic pause.
 The real extension counter should show 2 and Normal calls should remain 0.
 STOP and the threshold controls are in the extension popup, not in the web page.
 Reset demo stops automation and clears test storage before restarting the scenario.
-Use Test scenario for slow responses, a wrong patient, and a timeout.
+Use Test scenario for slow responses, a wrong patient, and missed Done attempts.
+Missed Done accepts the third attempt per queue; No completion retries until STOP.
 
 This is an installed Chrome extension, using native Chrome storage and content-script injection.
 The included page has no automation script or fake Chrome storage.

@@ -12,8 +12,8 @@ Internal Chrome extension to automate patient waiting list management and mainta
 
 ## 🛠 Installation
 
-Download the [hospital extension v1.0, build DONE-3](downloads/queuebee-extension-v1.0-DONE-3.zip),
-extract it, and load its `queuebee-extension-v1.0-DONE-3` folder using the steps below.
+Download the [hospital extension v1.0, build DONE-4](downloads/queuebee-extension-v1.0-DONE-4.zip),
+extract it, and load its `queuebee-extension-v1.0-DONE-4` folder using the steps below.
 This package runs on the hospital IP and contains no demo dashboard.
 
 1.  Open **Google Chrome** and go to `chrome://extensions/`.
@@ -23,10 +23,16 @@ This package runs on the hospital IP and contains no demo dashboard.
 
 ### Updating to v1.0
 
-Build **DONE-3** gives each active patient **five seconds to load before Done**.
+Build **DONE-4** gives each active patient **five seconds to load before Done**.
 The pause starts once the call timer and matching queue number appear and the
 confirmation closes. STOP and patient checks remain active during the pause;
 Done still waits longer if its control or QueueBee's lock is not ready.
+
+If completion is not confirmed, Done is retried **every five seconds** while the
+same patient remains active. There is no Done timeout or attempt limit, so an
+ignored click does not pause the extension. Each retry checks the current patient,
+control, button lock and STOP setting. Once the call timer ends, clicks cease
+while the waiting list refreshes. Completion is counted only once.
 
 It also waits for QueueBee's own button lock to expire before Done,
 targets the outer `.buttonDone` action, and checks the `.trDone` cursor used
@@ -37,13 +43,13 @@ QueueBee's lock function. The regression test reproduces the ignored click in
 the previous build and completes successive queues with this fix.
 
 This build also adds a live dashboard build check. The popup must display
-**Build DONE-3 · Dashboard connected (DONE-3)** before START is enabled.
+**Build DONE-4 · Dashboard connected (DONE-4)** before START is enabled.
 If the tab still contains an older script, the popup requests a dashboard
 refresh. STOP remains available. Chrome's extension version stays at 1.0.
 
 For a clean update: STOP, remove older QueueBee extension copies, install the
 new extracted folder, and close and reopen the QueueBee dashboard tab. Opening
-the popup on that tab should show the matching DONE-3 build. Reloading an
+the popup on that tab should show the matching DONE-4 build. Reloading an
 extension does not replace content scripts already running in an open page.
 
 The Done completion update also ignores fully transparent old
@@ -67,9 +73,11 @@ If a Silent Call confirmation appears, only the dialog for the intended queue is
 confirmed. Done requires the same selected queue number and an active call timer.
 The counter updates only after the timer ends and the transaction leaves the
 waiting list. Background tab throttling can delay work; a step delayed beyond
-30 seconds stops automation instead of retrying clicks. Check the popup's status
-message and the current patient before restarting. STOP prevents further actions;
-it cannot undo a Silent Call already sent to the server.
+the five-second interval resumes with a single Done attempt, without replaying
+missed attempts. Waiting for Done or the list refresh does not pause automation.
+The initial Silent Call/confirmation still has a 30-second response limit, and a
+different active patient stops the sequence. STOP cancels pending Done retries;
+it cannot undo actions already sent to the server.
 
 ### Test the installed extension offline
 
@@ -112,8 +120,11 @@ against simulated QueueBee controls and page-local storage.
 Start with the mixed-waits scenario and a 15-minute threshold. Queues 3001 and
 3002 should clear; 3003 (14:59) and 3004 (04:40) should remain. The normal-call
 counter should stay at zero. Other scenarios demonstrate slow completion,
-wrong-patient detection, and a response timeout. Reset or switch scenarios for a
-fresh test. Waiting durations are fixed, so boundary tests stay repeatable.
+wrong-patient detection, and missed Done clicks. Reset or switch scenarios for a
+fresh test. **Missed Done** ignores the first two Done attempts for each queue and
+accepts the third; watch five-second retries and one count per completed queue.
+**No completion** keeps retrying without counting or pausing until STOP.
+Waiting durations are fixed, so boundary tests stay repeatable.
 
 ### Development checks
 

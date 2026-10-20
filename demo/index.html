@@ -22,7 +22,8 @@
         <option value="below">All below 15 minutes</option>
         <option value="slow">Slow response · 8 seconds per completion</option>
         <option value="wrong">Wrong patient · must stop before Done</option>
-        <option value="timeout">No completion · must stop after 30 seconds</option>
+        <option value="retry">Missed Done · accept third attempt</option>
+        <option value="timeout">No completion · retry until STOP</option>
       </select></label>
       <button id="reset" class="secondary">Reset demo</button>
     </div>
@@ -61,7 +62,7 @@
       </aside>
     </div>
     <section class="card activity"><div class="section-title"><h2>What happened</h2><span class="muted">Newest first</span></div><ol id="timeline" aria-live="polite"></ol></section>
-    <footer>This demo runs the same v1.0 automation script with a simulated dashboard and Chrome storage. Testing here does not verify the live hospital system. Background browser throttling may delay work or trigger the timeout safeguard.</footer>
+    <footer>This demo runs the same v1.0 automation script with a simulated dashboard and Chrome storage. Testing here does not verify the live hospital system. Done retries continue every five seconds while the same patient is active; background browser throttling may delay attempts.</footer>
   </main>
   <script src="storage-mock.js"></script>
   <script src="demo.js"></script>

@@ -3,7 +3,7 @@
     if (globalThis.queueBeeAutomationLoaded) return;
     globalThis.queueBeeAutomationLoaded = true;
 
-    const QUEUEBEE_BUILD = 'DONE-3';
+    const QUEUEBEE_BUILD = 'DONE-4';
     chrome.runtime.onMessage?.addListener((message, sender, reply) => {
         if (message?.type === 'queuebee:build') reply({build:QUEUEBEE_BUILD});
         return false;
@@ -13,6 +13,7 @@
     const ding = new Audio("data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YV9vT18AZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAD///8BAP//AgD//wMA//8EAP//BQD//wYA//8HAP//CAD//wkA//8KAP//CwD//wwA//8NAP//DgD//w8A//8QAP//EQD//xIA//8TAP//FAD//xUA//8WAP//FwD//xgA//8ZAP//GgD//xsA//8cAP//HQD//x4A//8fAP//IAD//yEA//8iAP//IwD//yQA//8lAP//JgD//ycA//8oAP//KQD//yoA//8rAP//LAD//y0A//8uAP//LwD//zAA//8xAP//MgD//zMA//80AP//NQD//zYA//83AP//OAD//zkA//86AP//OwD//zwA//89AP//PgD//z8A");
     const STEP_TIMEOUT_MS = 30000;
     const DONE_LOAD_DELAY_MS = 5000;
+    const DONE_RETRY_DELAY_MS = 5000;
     let revision = 0;
     const completed = new Set();
     const text = el => (el?.textContent || '').replace(/\s+/g, ' ').trim();
@@ -165,7 +166,7 @@
             el.dispatchEvent(new MouseEvent('mousedown', {...mouse, buttons:1}));
         } else {
             // Main controls can use delegated mouse handlers as well as click.
-            // Send one mouse gesture to the exact action; never retry it.
+            // Send one mouse gesture per attempt to the exact action.
             el.dispatchEvent(new MouseEvent('mousedown', {...mouse, buttons:1}));
             if (!enabled(el)) return;
             el.dispatchEvent(new MouseEvent('mouseup', {...mouse, buttons:0}));
@@ -187,6 +188,53 @@
             await check(run, deadline, description);
             const value = predicate();
             if (value) return value;
+            await sleep(250);
+        }
+    }
+    async function finishWithRetries(run, candidate) {
+        let nextAttemptAt = null;
+        let attempts = 0;
+        let observedActive = false;
+        let lastMessage = '';
+        const report = async message => {
+            if (message !== lastMessage) {
+                lastMessage = message;
+                await set({automationMessage:message});
+            }
+        };
+        // Done has no deadline or attempt limit. Keep this transaction owned by
+        // one loop until completion or STOP, even after background throttling.
+        while (true) {
+            await check(run);
+            const timer = callTimer();
+            const selected = selectedQueue();
+            const openDialog = dialogs().length > 0;
+            if (observedActive && timer === null && waitingListVisible() &&
+                !transactionPresent(candidate) && !openDialog) return;
+            if (timer !== null && selected && selected !== '-END-' && selected !== candidate.num) {
+                throw new Error('Patient number changed.');
+            }
+            if (timer !== null && selected === candidate.num && !openDialog) {
+                observedActive = true;
+                if (nextAttemptAt === null) nextAttemptAt = Date.now() + DONE_LOAD_DELAY_MS;
+                if (Date.now() >= nextAttemptAt) {
+                    const done = doneControl();
+                    if (done && buttonLockRemaining() === 0) {
+                        await check(run);
+                        // Storage reads yield: recheck the current patient and
+                        // exact action immediately before every click.
+                        if (callTimer() !== null && selectedQueue() === candidate.num &&
+                            !dialogs().length && doneControl() === done && buttonLockRemaining() === 0) {
+                            activate(done);
+                            attempts++;
+                            nextAttemptAt = Date.now() + DONE_RETRY_DELAY_MS;
+                            await report(`DONE attempt ${attempts}: ${candidate.num}; checking completion, retry in 5 seconds if still active`);
+                        }
+                    } else {
+                        await report(`Waiting for the enabled DONE control or button lock: ${candidate.num}; retries remain active`);
+                    }
+                }
+            }
             await sleep(250);
         }
     }
@@ -224,37 +272,7 @@
                 activate(confirmation.yes);
             }
             await set({automationMessage:`Waiting 5 seconds for queue ${candidate.num} to load before DONE`});
-            let doneNotBefore = null;
-            await waitFor(run, () => {
-                if (callTimer() === null) return false;
-                const selected = selectedQueue();
-                // The queue label can disappear briefly while the service panel
-                // redraws. Wait for it; never click Done without a matching number.
-                if (!selected || selected === '-END-') return false;
-                if (selected !== candidate.num) throw new Error('Patient number changed.');
-                if (dialogs().length) return false;
-                // Give the active patient's service panel five seconds to load.
-                // Keep checking STOP, identity and readiness throughout the pause.
-                if (doneNotBefore === null) doneNotBefore = Date.now() + DONE_LOAD_DELAY_MS;
-                return Date.now() >= doneNotBefore && doneControl() && buttonLockRemaining() === 0;
-            }, () => callTimer() === null ? 'the active CALL timer' : dialogs().length
-                ? 'the confirmation dialog to close' : selectedQueue() !== candidate.num
-                    ? `queue ${candidate.num} to appear in the patient panel` : doneNotBefore === null || Date.now() < doneNotBefore
-                        ? 'the five-second loading pause before DONE' : !doneControl()
-                        ? 'the enabled DONE control' : buttonLockRemaining() === null
-                            ? 'the QueueBee button-lock reader' : 'the QueueBee button lock to expire');
-            await check(run);
-            if (selectedQueue() !== candidate.num || callTimer() === null || dialogs().length) {
-                throw new Error('Patient state changed before Done.');
-            }
-            const done = doneControl();
-            if (!done || buttonLockRemaining() !== 0) throw new Error('The exact DONE control is unavailable or locked.');
-            activate(done);
-            await set({automationMessage:`DONE requested: ${candidate.num}; waiting for completion`});
-            // A click alone is not completion: require both the timer to end and
-            // this transaction to leave the waiting list before counting it.
-            await waitFor(run, () => callTimer() === null && waitingListVisible() &&
-                !transactionPresent(candidate) && !dialogs().length, 'the waiting list to refresh after DONE');
+            await finishWithRetries(run, candidate);
             completed.add(candidate.key);
             await record(candidate);
             ding.play().catch(() => {});

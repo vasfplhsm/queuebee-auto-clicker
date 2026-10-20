@@ -5,7 +5,8 @@
         below: 'With the threshold at 15 minutes, START should leave every queue untouched.',
         slow: 'Completion takes 8 seconds. Watch that the next queue starts only after the current queue finishes. You can also switch tabs and return.',
         wrong: 'The simulator will return patient 9999 after Silent Call. Automation should stop without clicking Done or increasing the counter.',
-        timeout: 'Done will receive no response. After 30 seconds, automation should stop with a message and a cleared count of 0.'
+        retry: 'Each queue ignores its first two Done attempts and accepts the third. Watch five-second retries, a counter that updates once per completion, and no automatic pause.',
+        timeout: 'Done will receive no response. Automation should retry every five seconds, remain active beyond 30 seconds, and keep the cleared count at 0 until you press STOP.'
     };
     const mode = Object.hasOwn(descriptions, location.hash.slice(1)) ? location.hash.slice(1) : 'baseline';
     const byId = id => document.getElementById(id);
@@ -13,6 +14,7 @@
     let finishing = false;
     let normalCalls = 0;
     let startedAt = 0;
+    const doneAttempts = new Map();
     // Match the live QB10 guard captured from the user's dashboard.
     window.theButtonLockTime = 200;
     window.dtLastBtnLock = 0;
@@ -81,9 +83,12 @@
         if (!onPressDelay()) return;
         if (getComputedStyle(document.querySelector('.trDone')).cursor !== 'pointer') return;
         if (!active || finishing || byId('manualDone').disabled) return;
-        finishing = true;
         log(`Done requested for queue ${active}.`);
-        if (mode === 'timeout') {log('Simulated server is not responding. Waiting for the timeout safeguard…'); return;}
+        if (mode === 'timeout') {log('Simulated server is not responding. Done retries remain active; press STOP to cancel.'); return;}
+        const attempts = (doneAttempts.get(active) || 0) + 1;
+        doneAttempts.set(active,attempts);
+        if (mode === 'retry' && attempts <= 2) {log(`Done ignored for queue ${active}, attempt ${attempts}. Waiting for the next retry.`); return;}
+        finishing = true;
         setTimeout(() => {
             const finished = active;
             document.querySelector(`[data-demo-row="${finished}"]`)?.remove();

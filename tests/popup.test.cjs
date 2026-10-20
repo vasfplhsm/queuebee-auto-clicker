@@ -15,7 +15,7 @@ async function popup(t, options = {}) {
     await p.setContent(html);
     await p.evaluate(options => {
         window.state = {isRunning:false,waitLimit:'15',...options.storage};
-        window.pageBuild = options.pageBuild === undefined ? 'DONE-3' : options.pageBuild;
+        window.pageBuild = options.pageBuild === undefined ? 'DONE-4' : options.pageBuild;
         window.tabAvailable = options.tabAvailable !== false;
         window.tabId = options.tabId ?? 1;
         window.chrome = {runtime:options.simulation ? {} : {id:'popup-harness'}, storage:{local:{
@@ -35,9 +35,9 @@ async function popup(t, options = {}) {
     await p.addScriptTag({path:path.resolve(__dirname,'../popup.js')});
     return p;
 }
-test('native popup enables START only after the active dashboard confirms DONE-3', async t => {
+test('native popup enables START only after the active dashboard confirms DONE-4', async t => {
     const p = await popup(t,{tabId:0});
-    assert.match(await p.locator('#buildStatus').innerText(),/Dashboard connected \(DONE-3\)/);
+    assert.match(await p.locator('#buildStatus').innerText(),/Dashboard connected \(DONE-4\)/);
     assert.equal(await p.locator('#startBtn').isDisabled(),false);
     await p.locator('#startBtn').click();
     assert.equal(await p.evaluate(()=>state.isRunning),true);

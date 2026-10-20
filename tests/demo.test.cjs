@@ -97,15 +97,35 @@ test('wrong-patient demo stops before Done', async t => {
     assert.doesNotMatch(await timeline(page), /Done requested/);
 });
 
-test('timeout demo stops without counting an unfinished patient', async t => {
+test('unresponsive Done demo keeps retrying until STOP without counting an unfinished patient', async t => {
     const page = await open(t, 'timeout');
     await page.locator('#startBtn').click();
     await page.clock.runFor(45000);
     const state = await read(page);
-    assert.equal(state.isRunning, false);
+    assert.equal(state.isRunning, true);
     assert.equal(state.clearedCount, 0);
-    assert.match(state.automationMessage, /Timed out/);
-    assert.equal((await timeline(page)).match(/Done requested/g)?.length, 1);
+    assert.match(state.automationMessage, /DONE attempt/);
+    const attempts = (await timeline(page)).match(/Done requested/g)?.length;
+    assert.ok(attempts >= 7);
+    await page.locator('#stopBtn').click();
+    await page.clock.runFor(20000);
+    assert.equal((await read(page)).isRunning,false);
+    assert.equal((await timeline(page)).match(/Done requested/g)?.length,attempts);
+});
+
+test('missed Done demo accepts the third attempt per queue and completes each only once', async t => {
+    const page = await open(t,'retry');
+    await page.locator('#startBtn').click();
+    await page.clock.runFor(17000);
+    assert.equal((await read(page)).clearedCount,0);
+    assert.equal((await timeline(page)).match(/Done ignored/g)?.length,2);
+    await page.clock.runFor(45000);
+    const state = await read(page);
+    assert.equal(state.isRunning,true);
+    assert.equal(state.clearedCount,2);
+    assert.deepEqual(state.activityLogs.map(log=>log.num),['3001','3002']);
+    assert.equal((await timeline(page)).match(/Done requested/g)?.length,6);
+    assert.equal(await page.locator('#normalCalls').innerText(),'0');
 });
 
 test('manual CALL is recorded and automation leaves it alone', async t => {
